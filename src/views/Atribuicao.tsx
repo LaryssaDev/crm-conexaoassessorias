@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { INITIAL_USERS, INITIAL_LEADS } from '../constants';
+import { useData } from '../context/DataContext';
 import { Lead, User } from '../types';
 import { 
   UserCheck, 
@@ -13,18 +13,35 @@ import {
 
 export const Atribuicao: React.FC = () => {
   const { user } = useAuth();
-  const [leads, setLeads] = useState<Lead[]>(INITIAL_LEADS);
+  const { leads: contextLeads, users, updateLead } = useData();
+  const [leads, setLeads] = useState<Lead[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
 
-  const supervisorsComercial = INITIAL_USERS.filter(u => u.department === 'Comercial' && u.role === 'Supervisor');
-  const consultoresComercial = INITIAL_USERS.filter(u => u.department === 'Comercial' && u.role === 'Consultor');
-  const supervisorsJuridico = INITIAL_USERS.filter(u => u.department === 'Jurídico' && u.role === 'Supervisor');
-  const consultoresJuridico = INITIAL_USERS.filter(u => u.department === 'Jurídico' && u.role === 'Consultor');
+  useEffect(() => {
+    if (contextLeads) {
+      setLeads(contextLeads);
+    }
+  }, [contextLeads]);
+
+  const supervisorsComercial = users.filter(u => u.department === 'Comercial' && u.role === 'Supervisor');
+  const consultoresComercial = users.filter(u => u.department === 'Comercial' && u.role === 'Consultor');
+  const supervisorsJuridico = users.filter(u => u.department === 'Jurídico' && u.role === 'Supervisor');
+  const consultoresJuridico = users.filter(u => u.department === 'Jurídico' && u.role === 'Consultor');
 
   const handleAssign = (leadId: string, role: keyof Lead, userId: string) => {
-    setLeads(leads.map(lead => 
+    setLeads(prevLeads => prevLeads.map(lead => 
       lead.id === leadId ? { ...lead, [role]: userId } : lead
     ));
+  };
+
+  const saveAssignment = async (lead: Lead) => {
+    try {
+      await updateLead(lead);
+      alert('Atribuições salvas com sucesso!');
+    } catch (error) {
+      console.error('Error saving assignment:', error);
+      alert('Erro ao salvar atribuições.');
+    }
   };
 
   const filteredLeads = leads.filter(lead => 
@@ -135,7 +152,7 @@ export const Atribuicao: React.FC = () => {
                   </td>
                   <td className="px-6 py-4 text-right">
                     <button 
-                      onClick={() => alert('Atribuições salvas com sucesso!')}
+                      onClick={() => saveAssignment(lead)}
                       className="p-2.5 bg-primary/10 text-primary hover:bg-primary hover:text-white rounded-xl transition-all"
                       title="Salvar Atribuições"
                     >

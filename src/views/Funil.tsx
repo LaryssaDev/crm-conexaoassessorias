@@ -15,9 +15,9 @@ export const Funil: React.FC = () => {
     { id: 'Perdido', title: 'Perdido', color: 'bg-red-500' },
   ];
 
-  const filteredLeads = leads.filter(l => 
-    l.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    l.origin.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredLeads = (leads || []).filter(l => 
+    (l.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (l.origin || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const getLeadsByStatus = (status: string) => filteredLeads.filter(l => l.status === status);
@@ -91,10 +91,10 @@ export const Funil: React.FC = () => {
                       <div className="flex items-center justify-between mt-4 pt-3 border-t border-slate-50">
                         <div className="flex -space-x-2">
                           <div className="w-6 h-6 rounded-full border-2 border-white bg-slate-200 flex items-center justify-center text-[8px] font-bold text-slate-500">
-                            {lead.assignedTo.charAt(0)}
+                            {(lead.assignedTo || 'U').charAt(0)}
                           </div>
                         </div>
-                        <p className="text-xs font-bold text-slate-700">R$ {lead.installmentValue.toLocaleString()}</p>
+                        <p className="text-xs font-bold text-slate-700">R$ {(Number(lead.installmentValue) || 0).toLocaleString()}</p>
                       </div>
                     </div>
                   ))}

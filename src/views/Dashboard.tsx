@@ -21,26 +21,42 @@ import {
 
 export const Dashboard: React.FC = () => {
   const { user } = useAuth();
-  const { leads, transactions } = useData();
+  const { leads, transactions, history } = useData();
 
-  const totalFaturamento = transactions
+  const totalFaturamento = (transactions || [])
     .filter(t => t.type === 'Entrada')
-    .reduce((acc, t) => acc + t.value, 0);
+    .reduce((acc, t) => acc + (Number(t.value) || 0), 0);
 
-  const leadsEmNegociacao = leads.filter(l => l.status === 'Em Negociação').length;
-  const leadsFechados = leads.filter(l => l.status === 'Fechado').length;
-  const leadsPerdidos = leads.filter(l => l.status === 'Perdido').length;
+  const leadsEmNegociacao = (leads || []).filter(l => l.status === 'Em Negociação').length;
+  const leadsFechados = (leads || []).filter(l => l.status === 'Fechado').length;
+  const leadsPerdidos = (leads || []).filter(l => l.status === 'Perdido').length;
   
-  const totalLeads = leads.length;
+  const totalLeads = (leads || []).length;
   const conversao = totalLeads > 0 ? Math.round((leadsFechados / totalLeads) * 100) : 0;
 
+  // Goals logic (matching Meta.tsx)
+  const comercialTarget = 100000;
+  const juridicoTarget = 60000;
+  
+  const comercialCurrent = history
+    .filter(h => h.department === 'Comercial' && h.type === 'Pagamento')
+    .reduce((acc, curr) => acc + (Number(curr.value) || 0), 0);
+
+  const juridicoCurrent = history
+    .filter(h => h.department === 'Jurídico' && h.type === 'Pagamento')
+    .reduce((acc, curr) => acc + (Number(curr.value) || 0), 0);
+
+  const totalTarget = comercialTarget + juridicoTarget;
+  const totalCurrent = comercialCurrent + juridicoCurrent;
+  const totalGoalPercent = totalTarget > 0 ? Math.round((totalCurrent / totalTarget) * 100) : 0;
+
   const stats = [
-    { title: 'Faturamento Total', value: `R$ ${totalFaturamento.toLocaleString()}`, icon: TrendingUp, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+    { title: 'Faturamento Total', value: `R$ ${(Number(totalFaturamento) || 0).toLocaleString()}`, icon: TrendingUp, color: 'text-emerald-600', bg: 'bg-emerald-50' },
     { title: 'Leads em Negociação', value: leadsEmNegociacao.toString(), icon: Users, color: 'text-blue-600', bg: 'bg-blue-50' },
     { title: 'Leads Fechados', value: leadsFechados.toString(), icon: CheckCircle2, color: 'text-primary', bg: 'bg-primary/5' },
     { title: 'Leads Perdidos', value: leadsPerdidos.toString(), icon: XCircle, color: 'text-red-600', bg: 'bg-red-50' },
     { title: 'Taxa de Conversão', value: `${conversao}%`, icon: Percent, color: 'text-amber-600', bg: 'bg-amber-50' },
-    { title: 'Meta Mensal', value: '0%', icon: Target, color: 'text-purple-600', bg: 'bg-purple-50' },
+    { title: 'Meta Mensal', value: `${totalGoalPercent}%`, icon: Target, color: 'text-purple-600', bg: 'bg-purple-50' },
   ];
 
   // Prepare chart data from transactions
@@ -51,12 +67,13 @@ export const Dashboard: React.FC = () => {
     const monthIdx = (currentMonth - i + 12) % 12;
     last6Months.push({
       name: months[monthIdx],
-      faturamento: transactions
+      faturamento: (transactions || [])
         .filter(t => {
+          if (!t.date) return false;
           const d = new Date(t.date);
           return d.getMonth() === monthIdx && t.type === 'Entrada';
         })
-        .reduce((acc, t) => acc + t.value, 0)
+        .reduce((acc, t) => acc + (Number(t.value) || 0), 0)
     });
   }
 
@@ -112,7 +129,7 @@ export const Dashboard: React.FC = () => {
                 />
                 <Tooltip 
                   contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)'}}
-                  formatter={(value: number) => [`R$ ${value.toLocaleString()}`, 'Faturamento']}
+                  formatter={(value: number) => [`R$ ${(Number(value) || 0).toLocaleString()}`, 'Faturamento']}
                 />
                 <Area 
                   type="monotone" 
@@ -138,12 +155,12 @@ export const Dashboard: React.FC = () => {
             <div className="space-y-4">
               <div className="flex justify-between text-sm">
                 <span className="text-slate-500">Progresso</span>
-                <span className="font-bold text-slate-800">R$ 0 / R$ 100.000</span>
+                <span className="font-bold text-slate-800">R$ {comercialCurrent.toLocaleString()} / R$ {comercialTarget.toLocaleString()}</span>
               </div>
               <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                <div className="h-full bg-primary rounded-full transition-all" style={{ width: '0%' }}></div>
+                <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${Math.min(Math.round((comercialCurrent / comercialTarget) * 100), 100)}%` }}></div>
               </div>
-              <p className="text-xs text-slate-400 text-center font-bold uppercase tracking-wider">0% Atingido</p>
+              <p className="text-xs text-slate-400 text-center font-bold uppercase tracking-wider">{Math.round((comercialCurrent / comercialTarget) * 100)}% Atingido</p>
             </div>
           </div>
 
@@ -157,12 +174,12 @@ export const Dashboard: React.FC = () => {
             <div className="space-y-4">
               <div className="flex justify-between text-sm">
                 <span className="text-slate-500">Progresso</span>
-                <span className="font-bold text-slate-800">R$ 0 / R$ 60.000</span>
+                <span className="font-bold text-slate-800">R$ {juridicoCurrent.toLocaleString()} / R$ {juridicoTarget.toLocaleString()}</span>
               </div>
               <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                <div className="h-full bg-emerald-500 rounded-full transition-all" style={{ width: '0%' }}></div>
+                <div className="h-full bg-emerald-500 rounded-full transition-all" style={{ width: `${Math.min(Math.round((juridicoCurrent / juridicoTarget) * 100), 100)}%` }}></div>
               </div>
-              <p className="text-xs text-slate-400 text-center font-bold uppercase tracking-wider">0% Atingido</p>
+              <p className="text-xs text-slate-400 text-center font-bold uppercase tracking-wider">{Math.round((juridicoCurrent / juridicoTarget) * 100)}% Atingido</p>
             </div>
           </div>
         </div>

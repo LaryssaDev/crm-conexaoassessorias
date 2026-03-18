@@ -1,13 +1,47 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { INITIAL_USERS } from '../constants';
+import { useData } from '../context/DataContext';
 import { Trophy, Medal, Users } from 'lucide-react';
 
 export const Ranking: React.FC = () => {
   const { user } = useAuth();
+  const { users, leads, history } = useData();
   const [selectedDept, setSelectedDept] = useState<'Comercial' | 'Jurídico'>('Comercial');
 
-  const rankingData: any[] = [];
+  const consultants = users.filter(u => u.department === selectedDept && u.role === 'Consultor');
+  
+  // Add Aline Ferreira if she's the admin and might have sales
+  const admins = users.filter(u => u.role === 'Administrador');
+  const allPotentialSellers = [...consultants, ...admins];
+
+  const rankingData = allPotentialSellers.map(consultant => {
+    const consultantHistory = history.filter(h => h.userId === consultant.id && h.type === 'Pagamento' && h.department === selectedDept);
+    const faturamento = consultantHistory.reduce((acc, curr) => acc + (Number(curr.value) || 0), 0);
+    
+    // Count leads assigned to this consultant in this department
+    const consultantLeads = leads.filter(l => 
+      selectedDept === 'Comercial' ? l.consultorComercialId === consultant.id : l.consultorJuridicoId === consultant.id
+    ).length;
+
+    // Conversion: Leads with at least one payment / Total leads
+    const leadsWithPayment = leads.filter(l => {
+      const isAssigned = selectedDept === 'Comercial' ? l.consultorComercialId === consultant.id : l.consultorJuridicoId === consultant.id;
+      if (!isAssigned) return false;
+      return history.some(h => h.leadId === l.id && h.type === 'Pagamento' && h.department === selectedDept);
+    }).length;
+
+    const conversion = consultantLeads > 0 ? Math.round((leadsWithPayment / consultantLeads) * 100) : 0;
+
+    return {
+      id: consultant.id,
+      name: consultant.name,
+      faturamento,
+      leads: consultantLeads,
+      conversion
+    };
+  })
+  .filter(item => item.faturamento > 0 || item.leads > 0) // Only show those with some activity
+  .sort((a, b) => b.faturamento - a.faturamento);
 
   return (
     <div className="space-y-8">

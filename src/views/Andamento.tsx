@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 import { HistoryRecord, Lead, Department } from '../types';
+import { parseCurrency } from '../utils/format';
 import { 
   Plus, 
   Search, 
@@ -16,7 +17,7 @@ import {
 
 export const Andamento: React.FC = () => {
   const { user } = useAuth();
-  const { leads, history: dataHistory, addHistory } = useData();
+  const { users, leads, history: dataHistory, addHistory, addTransaction } = useData();
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [history, setHistory] = useState<HistoryRecord[]>([]);
   const [showModal, setShowModal] = useState(false);
@@ -24,7 +25,7 @@ export const Andamento: React.FC = () => {
   // Update local history when dataHistory or selectedLead changes
   React.useEffect(() => {
     if (selectedLead) {
-      setHistory(dataHistory.filter(h => h.leadId === selectedLead.id));
+      setHistory((dataHistory || []).filter(h => h.leadId === selectedLead.id));
     } else {
       setHistory([]);
     }
@@ -38,26 +39,56 @@ export const Andamento: React.FC = () => {
   const [newPaymentMethod, setNewPaymentMethod] = useState('Pix');
   const [newInstallments, setNewInstallments] = useState('1');
 
-  const addRecord = () => {
+  const addRecord = async () => {
     if (!selectedLead || !newDesc) return;
     
+    let assignedUserId = user?.id;
+
+    // If it's a payment, we need to link it to the assigned consultant for ranking purposes
+    if (newType === 'Pagamento') {
+      if (newDept === 'Comercial') {
+        assignedUserId = selectedLead.consultorComercialId || '1'; // '1' is Aline Ferreira (Admin)
+      } else if (newDept === 'Jurídico') {
+        assignedUserId = selectedLead.consultorJuridicoId || '1';
+      }
+    }
+
     const record: HistoryRecord = {
-      id: Math.random().toString(36).substr(2, 9),
+      id: crypto.randomUUID(),
       leadId: selectedLead.id,
+      userId: assignedUserId,
       department: newDept,
       type: newType,
       description: newDesc,
-      value: newType === 'Pagamento' ? Number(newValue) : undefined,
+      value: newType === 'Pagamento' ? parseCurrency(newValue) : undefined,
       paymentMethod: newType === 'Pagamento' ? newPaymentMethod : undefined,
       installments: newType === 'Pagamento' ? Number(newInstallments) : undefined,
       createdAt: new Date().toISOString(),
     };
 
-    addHistory(record);
-    setShowModal(false);
-    setNewDesc('');
-    setNewValue('');
-    setNewInstallments('1');
+    try {
+      await addHistory(record);
+      
+      // If it's a payment, also add to transactions
+      if (newType === 'Pagamento' && newValue) {
+        await addTransaction({
+          id: crypto.randomUUID(),
+          type: 'Entrada',
+          description: `Pagamento Lead: ${selectedLead.name} - ${newDesc}`,
+          value: parseCurrency(newValue),
+          date: new Date().toISOString().split('T')[0],
+          category: 'Vendas'
+        });
+      }
+
+      setShowModal(false);
+      setNewDesc('');
+      setNewValue('');
+      setNewInstallments('1');
+    } catch (error) {
+      console.error('Error adding record:', error);
+      alert('Erro ao adicionar registro. Verifique o console para mais detalhes.');
+    }
   };
 
   return (
@@ -74,7 +105,7 @@ export const Andamento: React.FC = () => {
         </div>
 
         <div className="space-y-3">
-          {leads.map((lead) => (
+          {(leads || []).map((lead) => (
             <button
               key={lead.id}
               onClick={() => setSelectedLead(lead)}
@@ -85,15 +116,15 @@ export const Andamento: React.FC = () => {
               }`}
             >
               <div className="flex justify-between items-start mb-2">
-                <p className="font-bold truncate pr-2">{lead.name}</p>
+                <p className="font-bold truncate pr-2">{lead.name || 'Sem nome'}</p>
                 <span className={`text-[10px] px-2 py-0.5 rounded-full uppercase font-bold ${
                   selectedLead?.id === lead.id ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'
                 }`}>
-                  {lead.status}
+                  {lead.status || 'Novo'}
                 </span>
               </div>
               <p className={`text-xs ${selectedLead?.id === lead.id ? 'text-white/80' : 'text-slate-500'}`}>
-                {lead.contractType} • R$ {lead.installmentValue.toLocaleString()}
+                {lead.contractType || 'N/A'} • R$ {(Number(lead.installmentValue) || 0).toLocaleString()}
               </p>
             </button>
           ))}
@@ -139,18 +170,23 @@ export const Andamento: React.FC = () => {
 
                     <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100">
                       <div className="flex items-center justify-between mb-2">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                          {record.type} • {record.department}
-                        </span>
+                        <div className="flex flex-col">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                            {record.type} • {record.department}
+                          </span>
+                          <span className="text-[10px] font-bold text-primary/70">
+                            Por: {users.find(u => u.id === record.userId)?.name || 'Sistema'}
+                          </span>
+                        </div>
                         <span className="text-[10px] text-slate-400 flex items-center gap-1">
                           <Clock size={10} />
-                          {new Date(record.createdAt).toLocaleString()}
+                          {record.createdAt ? new Date(record.createdAt).toLocaleString() : 'Data desconhecida'}
                         </span>
                       </div>
                       <p className="text-sm text-slate-700 leading-relaxed">{record.description}</p>
                       {record.value && (
                         <div className="mt-3 pt-3 border-t border-slate-200 flex flex-col gap-1">
-                          <span className="text-xs font-bold text-emerald-600">Valor: R$ {record.value.toLocaleString()}</span>
+                          <span className="text-xs font-bold text-emerald-600">Valor: R$ {(Number(record.value) || 0).toLocaleString()}</span>
                           <span className="text-[10px] text-slate-500 font-medium uppercase">Forma: {record.paymentMethod} • {record.installments}x</span>
                         </div>
                       )}
@@ -223,7 +259,7 @@ export const Andamento: React.FC = () => {
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Valor (R$)</label>
                     <input 
-                      type="number"
+                      type="text"
                       value={newValue}
                       onChange={(e) => setNewValue(e.target.value)}
                       className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-4 text-sm outline-none focus:ring-2 focus:ring-primary/20"

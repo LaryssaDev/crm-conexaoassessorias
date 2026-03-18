@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
+import { parseCurrency } from '../utils/format';
 import { Target, Users, Edit2, X, Check } from 'lucide-react';
 
 export const Meta: React.FC = () => {
   const { user } = useAuth();
-  const { users } = useData();
+  const { users, history } = useData();
   
   const [comercialTarget, setComercialTarget] = useState(100000);
   const [juridicoTarget, setJuridicoTarget] = useState(60000);
@@ -14,6 +15,15 @@ export const Meta: React.FC = () => {
   
   const comercialConsultants = users.filter(u => u.department === 'Comercial' && u.role === 'Consultor');
   const juridicoConsultants = users.filter(u => u.department === 'Jurídico' && u.role === 'Consultor');
+
+  // Calculate current faturamento per department
+  const comercialCurrent = history
+    .filter(h => h.department === 'Comercial' && h.type === 'Pagamento')
+    .reduce((acc, curr) => acc + (Number(curr.value) || 0), 0);
+
+  const juridicoCurrent = history
+    .filter(h => h.department === 'Jurídico' && h.type === 'Pagamento')
+    .reduce((acc, curr) => acc + (Number(curr.value) || 0), 0);
 
   const comercialPerConsultant = comercialConsultants.length > 0 ? comercialTarget / comercialConsultants.length : 0;
   const juridicoPerConsultant = juridicoConsultants.length > 0 ? juridicoTarget / juridicoConsultants.length : 0;
@@ -26,7 +36,7 @@ export const Meta: React.FC = () => {
       setTarget: setComercialTarget,
       consultants: comercialConsultants,
       perConsultant: comercialPerConsultant,
-      current: 0,
+      current: comercialCurrent,
       color: 'primary'
     },
     { 
@@ -36,16 +46,17 @@ export const Meta: React.FC = () => {
       setTarget: setJuridicoTarget,
       consultants: juridicoConsultants,
       perConsultant: juridicoPerConsultant,
-      current: 0,
+      current: juridicoCurrent,
       color: 'emerald'
     }
   ];
 
   const handleSaveTarget = () => {
-    if (editingDept && !isNaN(Number(tempTarget))) {
+    const parsedValue = parseCurrency(tempTarget);
+    if (editingDept && !isNaN(parsedValue)) {
       const dept = departments.find(d => d.id === editingDept.id);
       if (dept) {
-        dept.setTarget(Number(tempTarget));
+        dept.setTarget(parsedValue);
       }
       setEditingDept(null);
     }
@@ -142,11 +153,11 @@ export const Meta: React.FC = () => {
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Valor da Meta (R$)</label>
                 <input 
-                  type="number"
+                  type="text"
                   value={tempTarget}
                   onChange={(e) => setTempTarget(e.target.value)}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-4 text-sm outline-none focus:ring-2 focus:ring-primary/20"
-                  placeholder="Ex: 100000"
+                  placeholder="Ex: 100.000"
                   autoFocus
                 />
               </div>

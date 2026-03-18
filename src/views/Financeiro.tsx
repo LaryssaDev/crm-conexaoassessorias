@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
+import { parseCurrency } from '../utils/format';
 import { 
   DollarSign, 
   ArrowUpCircle, 
@@ -32,7 +33,7 @@ export const Financeiro: React.FC = () => {
   const [showFullExtrato, setShowFullExtrato] = useState(false);
   const [newTransaction, setNewTransaction] = useState({
     description: '',
-    value: 0,
+    value: '' as any,
     type: 'Entrada' as 'Entrada' | 'Saída',
     category: 'Vendas',
     date: new Date().toISOString().split('T')[0]
@@ -44,7 +45,8 @@ export const Financeiro: React.FC = () => {
   const last6Months = [];
   for (let i = 5; i >= 0; i--) {
     const monthIdx = (currentMonth - i + 12) % 12;
-    const monthTransactions = transactions.filter(t => {
+    const monthTransactions = (transactions || []).filter(t => {
+      if (!t.date) return false;
       const d = new Date(t.date);
       return d.getMonth() === monthIdx;
     });
@@ -53,29 +55,29 @@ export const Financeiro: React.FC = () => {
       name: months[monthIdx],
       entradas: monthTransactions
         .filter(t => t.type === 'Entrada')
-        .reduce((acc, t) => acc + t.value, 0),
+        .reduce((acc, t) => acc + (Number(t.value) || 0), 0),
       saidas: monthTransactions
         .filter(t => t.type === 'Saída')
-        .reduce((acc, t) => acc + t.value, 0)
+        .reduce((acc, t) => acc + (Number(t.value) || 0), 0)
     });
   }
 
-  const totalEntradas = transactions.filter(t => t.type === 'Entrada').reduce((acc, curr) => acc + curr.value, 0);
-  const totalSaidas = transactions.filter(t => t.type === 'Saída').reduce((acc, curr) => acc + curr.value, 0);
+  const totalEntradas = (transactions || []).filter(t => t.type === 'Entrada').reduce((acc, curr) => acc + (Number(curr.value) || 0), 0);
+  const totalSaidas = (transactions || []).filter(t => t.type === 'Saída').reduce((acc, curr) => acc + (Number(curr.value) || 0), 0);
   const saldo = totalEntradas - totalSaidas;
 
   const handleAddTransaction = (e: React.FormEvent) => {
     e.preventDefault();
     const transactionToAdd: Transaction = {
-      id: Math.random().toString(36).substr(2, 9),
+      id: crypto.randomUUID(),
       ...newTransaction,
-      value: Number(newTransaction.value)
+      value: parseCurrency(newTransaction.value)
     };
     addTransaction(transactionToAdd);
     setShowModal(false);
     setNewTransaction({
       description: '',
-      value: 0,
+      value: '' as any,
       type: 'Entrada',
       category: 'Vendas',
       date: new Date().toISOString().split('T')[0]
@@ -87,11 +89,11 @@ export const Financeiro: React.FC = () => {
     const csvContent = [
       headers.join(','),
       ...transactions.map(t => [
-        new Date(t.date).toLocaleDateString(),
-        t.description,
-        t.type,
-        t.category,
-        t.value
+        t.date ? new Date(t.date).toLocaleDateString() : 'N/A',
+        t.description || '',
+        t.type || '',
+        t.category || '',
+        Number(t.value) || 0
       ].join(','))
     ].join('\n');
 
@@ -203,7 +205,7 @@ export const Financeiro: React.FC = () => {
           </div>
           
           <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
-            {transactions.slice(0, 10).map(t => (
+            {(transactions || []).slice(0, 10).map(t => (
               <div key={t.id} className="flex items-center justify-between group">
                 <div className="flex items-center gap-4">
                   <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
@@ -212,15 +214,15 @@ export const Financeiro: React.FC = () => {
                     {t.type === 'Entrada' ? <ArrowUpCircle size={20} /> : <ArrowDownCircle size={20} />}
                   </div>
                   <div>
-                    <p className="text-sm font-bold text-slate-800">{t.description}</p>
-                    <p className="text-[10px] text-slate-400 font-bold uppercase">{t.category} • {new Date(t.date).toLocaleDateString()}</p>
+                    <p className="text-sm font-bold text-slate-800">{t.description || 'Sem descrição'}</p>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase">{t.category || 'Geral'} • {t.date ? new Date(t.date).toLocaleDateString() : 'Data N/A'}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
                   <p className={`font-bold text-sm ${
                     t.type === 'Entrada' ? 'text-emerald-600' : 'text-red-600'
                   }`}>
-                    {t.type === 'Entrada' ? '+' : '-'} R$ {t.value.toLocaleString()}
+                    {t.type === 'Entrada' ? '+' : '-'} R$ {(Number(t.value) || 0).toLocaleString()}
                   </p>
                   <button 
                     onClick={() => deleteTransaction(t.id)}
@@ -268,22 +270,22 @@ export const Financeiro: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {transactions.map(t => (
+                  {(transactions || []).map(t => (
                     <tr key={t.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="px-6 py-4 text-sm text-slate-500">{new Date(t.date).toLocaleDateString()}</td>
-                      <td className="px-6 py-4 font-bold text-slate-800">{t.description}</td>
-                      <td className="px-6 py-4 text-sm text-slate-500">{t.category}</td>
+                      <td className="px-6 py-4 text-sm text-slate-500">{t.date ? new Date(t.date).toLocaleDateString() : 'N/A'}</td>
+                      <td className="px-6 py-4 font-bold text-slate-800">{t.description || 'Sem descrição'}</td>
+                      <td className="px-6 py-4 text-sm text-slate-500">{t.category || 'Geral'}</td>
                       <td className="px-6 py-4">
                         <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase ${
                           t.type === 'Entrada' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'
                         }`}>
-                          {t.type}
+                          {t.type || 'N/A'}
                         </span>
                       </td>
                       <td className={`px-6 py-4 text-right font-bold ${
                         t.type === 'Entrada' ? 'text-emerald-600' : 'text-red-600'
                       }`}>
-                        {t.type === 'Entrada' ? '+' : '-'} R$ {t.value.toLocaleString()}
+                        {t.type === 'Entrada' ? '+' : '-'} R$ {(Number(t.value) || 0).toLocaleString()}
                       </td>
                     </tr>
                   ))}
@@ -350,10 +352,10 @@ export const Financeiro: React.FC = () => {
                 <div>
                   <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Valor (R$)</label>
                   <input 
-                    type="number"
+                    type="text"
                     required
                     value={newTransaction.value}
-                    onChange={(e) => setNewTransaction({...newTransaction, value: Number(e.target.value)})}
+                    onChange={(e) => setNewTransaction({...newTransaction, value: e.target.value})}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-4 text-sm outline-none focus:ring-2 focus:ring-primary/20 transition-all"
                     placeholder="0,00"
                   />

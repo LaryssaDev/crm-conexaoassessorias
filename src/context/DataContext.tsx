@@ -10,7 +10,7 @@ interface DataContextType {
   transactions: Transaction[];
   history: HistoryRecord[];
   loading: boolean;
-  addUser: (user: User) => Promise<void>;
+  addUser: (user: User, password?: string) => Promise<void>;
   updateUser: (user: User) => Promise<void>;
   deleteUser: (id: string) => Promise<void>;
   addLead: (lead: Lead) => Promise<void>;
@@ -56,11 +56,53 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
           supabase.from('history_records').select('*').order('created_at', { ascending: false })
         ]);
 
-        if (usersData) setUsers(usersData.length > 0 ? usersData : INITIAL_USERS);
-        if (leadsData) setLeads(leadsData);
-        if (costsData) setCosts(costsData);
+        if (usersData) {
+          setUsers(usersData.length > 0 ? usersData.map((u: any) => ({
+            ...u,
+            createdAt: u.created_at
+          })) : INITIAL_USERS);
+        }
+        if (leadsData) {
+          setLeads(leadsData.map((l: any) => ({
+            id: l.id,
+            name: l.name,
+            cpf: l.cpf,
+            phone: l.phone,
+            email: l.email,
+            origin: l.origin,
+            contractType: l.contract_type || l.contractType,
+            installmentValue: l.installment_value || l.installmentValue,
+            status: l.status,
+            assignedTo: l.assigned_to || l.assignedTo,
+            supervisorId: l.supervisor_id || l.supervisorId,
+            supervisorComercialId: l.supervisor_comercial_id || l.supervisorComercialId,
+            consultorComercialId: l.consultor_comercial_id || l.consultorComercialId,
+            supervisorJuridicoId: l.supervisor_juridico_id || l.supervisorJuridicoId,
+            consultorJuridicoId: l.consultor_juridico_id || l.consultorJuridicoId,
+            createdAt: l.created_at || l.createdAt
+          })));
+        }
+        if (costsData) {
+          setCosts(costsData.map((c: any) => ({
+            ...c,
+            dueDate: c.due_date || c.dueDate
+          })));
+        }
         if (transactionsData) setTransactions(transactionsData);
-        if (historyData) setHistory(historyData);
+        if (historyData) {
+          setHistory(historyData.map((h: any) => ({
+            id: h.id,
+            leadId: h.lead_id || h.leadId,
+            userId: h.user_id || h.userId,
+            department: h.department,
+            type: h.type,
+            description: h.description,
+            value: h.value,
+            paymentMethod: h.payment_method || h.paymentMethod,
+            installments: h.installments,
+            createdAt: h.created_at || h.createdAt
+          })));
+        }
       } catch (error) {
         console.error('Error fetching data from Supabase:', error);
       } finally {
@@ -102,69 +144,219 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [lastResetDate, costs]);
 
-  const addUser = async (user: User) => {
+  const addUser = async (user: User, password?: string) => {
+    // If a password is provided, attempt to sign up the user in Supabase Auth
+    if (password) {
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: user.login,
+        password: password,
+        options: {
+          data: {
+            full_name: user.name,
+            role: user.role,
+            department: user.department
+          }
+        }
+      });
+
+      if (authError) {
+        console.error('Error signing up user in Auth:', authError);
+        // If the user already exists in Auth, we might still want to add them to the users table
+        if (!authError.message.includes('User already registered')) {
+          throw authError;
+        }
+      }
+
+      // Use the ID from Auth if available
+      if (authData?.user) {
+        user.id = authData.user.id;
+      }
+    }
+
     const { error } = await supabase.from('users').insert([user]);
-    if (error) console.error('Error adding user:', error);
+    if (error) {
+      console.error('Error adding user to database:', error);
+      throw error;
+    }
   };
 
   const updateUser = async (user: User) => {
     const { error } = await supabase.from('users').update(user).eq('id', user.id);
-    if (error) console.error('Error updating user:', error);
+    if (error) {
+      console.error('Error updating user:', error);
+      throw error;
+    }
   };
 
   const deleteUser = async (id: string) => {
-    const { error } = await supabase.from('users').delete().eq('id', id);
-    if (error) console.error('Error deleting user:', error);
+    console.log('Attempting to delete user with ID:', id);
+    try {
+      // Nullify references in leads to avoid foreign key constraint errors
+      await Promise.all([
+        supabase.from('leads').update({ supervisor_comercial_id: null }).eq('supervisor_comercial_id', id),
+        supabase.from('leads').update({ consultor_comercial_id: null }).eq('consultor_comercial_id', id),
+        supabase.from('leads').update({ supervisor_juridico_id: null }).eq('supervisor_juridico_id', id),
+        supabase.from('leads').update({ consultor_juridico_id: null }).eq('consultor_juridico_id', id),
+        supabase.from('leads').update({ assigned_to: null }).eq('assigned_to', id),
+        supabase.from('leads').update({ supervisor_id: null }).eq('supervisor_id', id)
+      ]);
+
+      // Nullify references in history records
+      await supabase.from('history_records').update({ user_id: null }).eq('user_id', id);
+
+      const { error } = await supabase.from('users').delete().eq('id', id);
+      if (error) {
+        console.error('Error deleting user from database:', error);
+        throw error;
+      }
+    } catch (error) {
+      console.error('Error in deleteUser process:', error);
+      throw error;
+    }
   };
 
   const addLead = async (lead: Lead) => {
-    const { error } = await supabase.from('leads').insert([lead]);
-    if (error) console.error('Error adding lead:', error);
+    const dbLead = {
+      name: lead.name,
+      cpf: lead.cpf,
+      phone: lead.phone,
+      email: lead.email,
+      origin: lead.origin,
+      contract_type: lead.contractType,
+      installment_value: lead.installmentValue,
+      status: lead.status,
+      assigned_to: lead.assignedTo,
+      supervisor_id: lead.supervisorId,
+      supervisor_comercial_id: lead.supervisorComercialId,
+      consultor_comercial_id: lead.consultorComercialId,
+      supervisor_juridico_id: lead.supervisorJuridicoId,
+      consultor_juridico_id: lead.consultorJuridicoId,
+      created_at: lead.createdAt
+    };
+    const { error } = await supabase.from('leads').insert([dbLead]);
+    if (error) {
+      console.error('Error adding lead:', error);
+      throw error;
+    }
   };
 
   const updateLead = async (lead: Lead) => {
-    const { error } = await supabase.from('leads').update(lead).eq('id', lead.id);
-    if (error) console.error('Error updating lead:', error);
+    const dbLead = {
+      name: lead.name,
+      cpf: lead.cpf,
+      phone: lead.phone,
+      email: lead.email,
+      origin: lead.origin,
+      contract_type: lead.contractType,
+      installment_value: lead.installmentValue,
+      status: lead.status,
+      assigned_to: lead.assignedTo,
+      supervisor_id: lead.supervisorId,
+      supervisor_comercial_id: lead.supervisorComercialId,
+      consultor_comercial_id: lead.consultorComercialId,
+      supervisor_juridico_id: lead.supervisorJuridicoId,
+      consultor_juridico_id: lead.consultorJuridicoId
+    };
+    const { error } = await supabase.from('leads').update(dbLead).eq('id', lead.id);
+    if (error) {
+      console.error('Error updating lead:', error);
+      throw error;
+    }
   };
 
   const deleteLead = async (id: string) => {
     const { error } = await supabase.from('leads').delete().eq('id', id);
-    if (error) console.error('Error deleting lead:', error);
+    if (error) {
+      console.error('Error deleting lead:', error);
+      throw error;
+    }
   };
 
   const addCost = async (cost: FixedCost) => {
-    const { error } = await supabase.from('fixed_costs').insert([cost]);
-    if (error) console.error('Error adding cost:', error);
+    const dbCost = {
+      description: cost.description,
+      value: cost.value,
+      due_date: cost.dueDate,
+      status: cost.status
+    };
+    const { error } = await supabase.from('fixed_costs').insert([dbCost]);
+    if (error) {
+      console.error('Error adding cost:', error);
+      throw error;
+    }
   };
 
   const updateCost = async (cost: FixedCost) => {
-    const { error } = await supabase.from('fixed_costs').update(cost).eq('id', cost.id);
-    if (error) console.error('Error updating cost:', error);
+    const dbCost = {
+      description: cost.description,
+      value: cost.value,
+      due_date: cost.dueDate,
+      status: cost.status
+    };
+    const { error } = await supabase.from('fixed_costs').update(dbCost).eq('id', cost.id);
+    if (error) {
+      console.error('Error updating cost:', error);
+      throw error;
+    }
   };
 
   const deleteCost = async (id: string) => {
     const { error } = await supabase.from('fixed_costs').delete().eq('id', id);
-    if (error) console.error('Error deleting cost:', error);
+    if (error) {
+      console.error('Error deleting cost:', error);
+      throw error;
+    }
   };
 
   const addTransaction = async (transaction: Transaction) => {
-    const { error } = await supabase.from('transactions').insert([transaction]);
-    if (error) console.error('Error adding transaction:', error);
+    const dbTransaction = {
+      type: transaction.type,
+      description: transaction.description,
+      value: transaction.value,
+      date: transaction.date,
+      category: transaction.category,
+      cost_id: transaction.costId
+    };
+    const { error } = await supabase.from('transactions').insert([dbTransaction]);
+    if (error) {
+      console.error('Error adding transaction:', error);
+      throw error;
+    }
   };
 
   const updateTransaction = async (transaction: Transaction) => {
     const { error } = await supabase.from('transactions').update(transaction).eq('id', transaction.id);
-    if (error) console.error('Error updating transaction:', error);
+    if (error) {
+      console.error('Error updating transaction:', error);
+      throw error;
+    }
   };
 
   const deleteTransaction = async (id: string) => {
     const { error } = await supabase.from('transactions').delete().eq('id', id);
-    if (error) console.error('Error deleting transaction:', error);
+    if (error) {
+      console.error('Error deleting transaction:', error);
+      throw error;
+    }
   };
 
   const addHistory = async (record: HistoryRecord) => {
-    const { error } = await supabase.from('history_records').insert([record]);
-    if (error) console.error('Error adding history:', error);
+    const dbRecord = {
+      lead_id: record.leadId,
+      user_id: record.userId,
+      department: record.department,
+      type: record.type,
+      description: record.description,
+      value: record.value,
+      payment_method: record.paymentMethod,
+      installments: record.installments,
+      created_at: record.createdAt
+    };
+    const { error } = await supabase.from('history_records').insert([dbRecord]);
+    if (error) {
+      console.error('Error adding history:', error);
+      throw error;
+    }
   };
 
   const toggleCostStatus = useCallback(async (id: string) => {
@@ -186,7 +378,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (!alreadyPaidThisMonth) {
         const newTransaction: Transaction = {
-          id: Math.random().toString(36).substr(2, 9),
+          id: crypto.randomUUID(),
           type: 'Saída',
           description: `Pagamento: ${costToToggle.description}`,
           value: costToToggle.value,

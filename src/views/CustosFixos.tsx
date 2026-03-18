@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
+import { parseCurrency } from '../utils/format';
 import { FixedCost } from '../types';
 import { Plus, Calculator, CheckCircle2, Clock, Trash2, Search, X } from 'lucide-react';
 
@@ -10,25 +11,25 @@ export const CustosFixos: React.FC = () => {
   const [showModal, setShowModal] = useState(false);
   const [newCost, setNewCost] = useState({
     description: '',
-    value: 0,
+    value: '' as any,
     dueDate: new Date().toISOString().split('T')[0]
   });
 
-  const totalPendente = costs.filter(c => c.status === 'Pendente').reduce((acc, curr) => acc + curr.value, 0);
-  const totalPago = costs.filter(c => c.status === 'Pago').reduce((acc, curr) => acc + curr.value, 0);
+  const totalPendente = (costs || []).filter(c => c.status === 'Pendente').reduce((acc, curr) => acc + (Number(curr.value) || 0), 0);
+  const totalPago = (costs || []).filter(c => c.status === 'Pago').reduce((acc, curr) => acc + (Number(curr.value) || 0), 0);
 
   const handleAddCost = (e: React.FormEvent) => {
     e.preventDefault();
     const costToAdd: FixedCost = {
-      id: Math.random().toString(36).substr(2, 9),
+      id: crypto.randomUUID(),
       description: newCost.description,
-      value: Number(newCost.value),
+      value: parseCurrency(newCost.value),
       dueDate: newCost.dueDate,
       status: 'Pendente'
     };
     addCost(costToAdd);
     setShowModal(false);
-    setNewCost({ description: '', value: 0, dueDate: new Date().toISOString().split('T')[0] });
+    setNewCost({ description: '', value: '' as any, dueDate: new Date().toISOString().split('T')[0] });
   };
 
   return (
@@ -85,11 +86,11 @@ export const CustosFixos: React.FC = () => {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {costs.map(cost => (
+            {(costs || []).map(cost => (
               <tr key={cost.id} className="hover:bg-slate-50 transition-colors">
-                <td className="px-6 py-4 font-bold text-slate-800">{cost.description}</td>
-                <td className="px-6 py-4 text-slate-600">R$ {cost.value.toLocaleString()}</td>
-                <td className="px-6 py-4 text-slate-500 text-sm">{new Date(cost.dueDate).toLocaleDateString()}</td>
+                <td className="px-6 py-4 font-bold text-slate-800">{cost.description || 'Sem descrição'}</td>
+                <td className="px-6 py-4 text-slate-600">R$ {(Number(cost.value) || 0).toLocaleString()}</td>
+                <td className="px-6 py-4 text-slate-500 text-sm">{cost.dueDate ? new Date(cost.dueDate).toLocaleDateString() : 'N/A'}</td>
                 <td className="px-6 py-4">
                   <button 
                     onClick={() => toggleCostStatus(cost.id)}
@@ -98,7 +99,7 @@ export const CustosFixos: React.FC = () => {
                     }`}
                   >
                     {cost.status === 'Pago' ? <CheckCircle2 size={12} /> : <Clock size={12} />}
-                    {cost.status}
+                    {cost.status || 'Pendente'}
                   </button>
                 </td>
                 <td className="px-6 py-4 text-right">
@@ -143,10 +144,10 @@ export const CustosFixos: React.FC = () => {
                 <div>
                   <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Valor (R$)</label>
                   <input 
-                    type="number"
+                    type="text"
                     required
                     value={newCost.value}
-                    onChange={(e) => setNewCost({...newCost, value: Number(e.target.value)})}
+                    onChange={(e) => setNewCost({...newCost, value: e.target.value})}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-4 text-sm outline-none focus:ring-2 focus:ring-primary/20 transition-all"
                     placeholder="0,00"
                   />

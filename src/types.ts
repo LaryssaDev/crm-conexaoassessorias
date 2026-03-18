@@ -31,14 +31,15 @@ export interface Lead {
   consultorComercialId?: string;
   supervisorJuridicoId?: string;
   consultorJuridicoId?: string;
-  assignedTo: string; // Legacy field, keeping for compatibility
-  supervisorId: string; // Legacy field, keeping for compatibility
+  assignedTo?: string; // Legacy field, keeping for compatibility
+  supervisorId?: string; // Legacy field, keeping for compatibility
   createdAt: string;
 }
 
 export interface HistoryRecord {
   id: string;
   leadId: string;
+  userId?: string;
   department: Department;
   type: 'Contato' | 'Observação' | 'Pagamento';
   phone?: string;

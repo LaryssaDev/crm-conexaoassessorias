@@ -7,4 +7,6 @@ if (!import.meta.env.VITE_SUPABASE_URL || !import.meta.env.VITE_SUPABASE_ANON_KE
   console.warn('Supabase URL or Anon Key is missing. Please check your environment variables in the Settings menu.');
 }
 
+export const isConfigured = Boolean(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY);
+
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
