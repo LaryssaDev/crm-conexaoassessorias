@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth, AuthProvider } from './context/AuthContext';
 import { DataProvider, useData } from './context/DataContext';
+import { NotificationProvider } from './context/NotificationContext';
 import { LoginPage } from './views/LoginPage';
 import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
@@ -72,9 +73,11 @@ const AppContent: React.FC = () => {
 export default function App() {
   return (
     <AuthProvider>
-      <DataProvider>
-        <AppContent />
-      </DataProvider>
+      <NotificationProvider>
+        <DataProvider>
+          <AppContent />
+        </DataProvider>
+      </NotificationProvider>
     </AuthProvider>
   );
 }

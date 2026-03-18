@@ -6,10 +6,8 @@ import { Target, Users, Edit2, X, Check } from 'lucide-react';
 
 export const Meta: React.FC = () => {
   const { user } = useAuth();
-  const { users, history } = useData();
+  const { users, history, comercialTarget, juridicoTarget, setComercialTarget, setJuridicoTarget } = useData();
   
-  const [comercialTarget, setComercialTarget] = useState(100000);
-  const [juridicoTarget, setJuridicoTarget] = useState(60000);
   const [editingDept, setEditingDept] = useState<{ id: string, name: string, current: number } | null>(null);
   const [tempTarget, setTempTarget] = useState('');
   

@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useCallback, useEffect } fr
 import { User, Lead, FixedCost, Transaction, HistoryRecord } from '../types';
 import { INITIAL_USERS, INITIAL_LEADS, INITIAL_COSTS, INITIAL_TRANSACTIONS, INITIAL_HISTORY } from '../constants';
 import { supabase } from '../lib/supabase';
+import { useNotifications } from './NotificationContext';
 
 interface DataContextType {
   users: User[];
@@ -10,6 +11,10 @@ interface DataContextType {
   transactions: Transaction[];
   history: HistoryRecord[];
   loading: boolean;
+  comercialTarget: number;
+  juridicoTarget: number;
+  setComercialTarget: (target: number) => void;
+  setJuridicoTarget: (target: number) => void;
   addUser: (user: User, password?: string) => Promise<void>;
   updateUser: (user: User) => Promise<void>;
   deleteUser: (id: string) => Promise<void>;
@@ -29,6 +34,7 @@ interface DataContextType {
 const DataContext = createContext<DataContextType | undefined>(undefined);
 
 export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { addNotification } = useNotifications();
   const [users, setUsers] = useState<User[]>(INITIAL_USERS);
   const [leads, setLeads] = useState<Lead[]>(INITIAL_LEADS);
   const [costs, setCosts] = useState<FixedCost[]>(INITIAL_COSTS);
@@ -36,6 +42,24 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [history, setHistory] = useState<HistoryRecord[]>(INITIAL_HISTORY);
   const [loading, setLoading] = useState(true);
   const [lastResetDate, setLastResetDate] = useState<string | null>(localStorage.getItem('last_cost_reset'));
+  const [comercialTarget, setComercialTargetState] = useState<number>(() => {
+    const saved = localStorage.getItem('comercial_target');
+    return saved ? Number(saved) : 100000;
+  });
+  const [juridicoTarget, setJuridicoTargetState] = useState<number>(() => {
+    const saved = localStorage.getItem('juridico_target');
+    return saved ? Number(saved) : 60000;
+  });
+
+  const setComercialTarget = (target: number) => {
+    setComercialTargetState(target);
+    localStorage.setItem('comercial_target', target.toString());
+  };
+
+  const setJuridicoTarget = (target: number) => {
+    setJuridicoTargetState(target);
+    localStorage.setItem('juridico_target', target.toString());
+  };
 
   // Fetch initial data from Supabase
   useEffect(() => {
@@ -114,10 +138,30 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     // Set up real-time subscriptions
     const usersSub = supabase.channel('users_changes').on('postgres_changes' as any, { event: '*', table: 'users' }, fetchData).subscribe();
-    const leadsSub = supabase.channel('leads_changes').on('postgres_changes' as any, { event: '*', table: 'leads' }, fetchData).subscribe();
+    
+    const leadsSub = supabase.channel('leads_changes').on('postgres_changes' as any, { event: 'INSERT', table: 'leads' }, (payload: any) => {
+      const newLead = payload.new;
+      addNotification('Novo Lead', `O lead ${newLead.name} foi adicionado.`, 'lead');
+      fetchData();
+    }).on('postgres_changes' as any, { event: 'UPDATE', table: 'leads' }, fetchData).on('postgres_changes' as any, { event: 'DELETE', table: 'leads' }, fetchData).subscribe();
+
     const costsSub = supabase.channel('costs_changes').on('postgres_changes' as any, { event: '*', table: 'fixed_costs' }, fetchData).subscribe();
-    const transactionsSub = supabase.channel('transactions_changes').on('postgres_changes' as any, { event: '*', table: 'transactions' }, fetchData).subscribe();
-    const historySub = supabase.channel('history_changes').on('postgres_changes' as any, { event: '*', table: 'history_records' }, fetchData).subscribe();
+    
+    const transactionsSub = supabase.channel('transactions_changes').on('postgres_changes' as any, { event: 'INSERT', table: 'transactions' }, (payload: any) => {
+      const newTransaction = payload.new;
+      if (newTransaction.type === 'Entrada') {
+        addNotification('Novo Pagamento', `Um pagamento de R$ ${newTransaction.value.toLocaleString()} foi recebido: ${newTransaction.description}`, 'payment');
+      }
+      fetchData();
+    }).on('postgres_changes' as any, { event: 'UPDATE', table: 'transactions' }, fetchData).on('postgres_changes' as any, { event: 'DELETE', table: 'transactions' }, fetchData).subscribe();
+
+    const historySub = supabase.channel('history_changes').on('postgres_changes' as any, { event: 'INSERT', table: 'history_records' }, (payload: any) => {
+      const newRecord = payload.new;
+      if (newRecord.type === 'Pagamento') {
+        addNotification('Pagamento Registrado', `Pagamento de R$ ${newRecord.value.toLocaleString()} registrado em andamento.`, 'payment');
+      }
+      fetchData();
+    }).on('postgres_changes' as any, { event: 'UPDATE', table: 'history_records' }, fetchData).on('postgres_changes' as any, { event: 'DELETE', table: 'history_records' }, fetchData).subscribe();
 
     return () => {
       supabase.removeChannel(usersSub);
@@ -424,6 +468,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   return (
     <DataContext.Provider value={{ 
       users, leads, costs, transactions, history, loading,
+      comercialTarget, juridicoTarget, setComercialTarget, setJuridicoTarget,
       addUser, updateUser, deleteUser,
       addLead, updateLead, deleteLead,
       addCost, updateCost, deleteCost,

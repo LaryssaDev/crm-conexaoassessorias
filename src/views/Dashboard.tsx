@@ -21,7 +21,7 @@ import {
 
 export const Dashboard: React.FC = () => {
   const { user } = useAuth();
-  const { leads, transactions, history } = useData();
+  const { leads, transactions, history, comercialTarget, juridicoTarget } = useData();
 
   const totalFaturamento = (transactions || [])
     .filter(t => t.type === 'Entrada')
@@ -34,10 +34,6 @@ export const Dashboard: React.FC = () => {
   const totalLeads = (leads || []).length;
   const conversao = totalLeads > 0 ? Math.round((leadsFechados / totalLeads) * 100) : 0;
 
-  // Goals logic (matching Meta.tsx)
-  const comercialTarget = 100000;
-  const juridicoTarget = 60000;
-  
   const comercialCurrent = history
     .filter(h => h.department === 'Comercial' && h.type === 'Pagamento')
     .reduce((acc, curr) => acc + (Number(curr.value) || 0), 0);
