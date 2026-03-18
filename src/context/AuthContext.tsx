@@ -33,13 +33,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setUser(profile);
           } else {
             // Fallback to auth user if profile not found
-            setUser({
+            const fallbackUser: User = {
               id: sessionUser.id,
               name: sessionUser.user_metadata?.full_name || sessionUser.email?.split('@')[0] || 'User',
               login: sessionUser.email || '',
-              role: 'Consultor',
-              department: 'Comercial'
-            });
+              role: (sessionUser.user_metadata?.role as UserRole) || 'Consultor',
+              department: sessionUser.user_metadata?.department || 'Comercial'
+            };
+            
+            // Auto-create the profile in the users table so they are visible to admins
+            await supabase.from('users').insert([fallbackUser]);
+            
+            if (mounted) {
+              setUser(fallbackUser);
+            }
           }
         }
       } catch (e) {

@@ -46,29 +46,34 @@ export const Equipe: React.FC = () => {
     return matchesSearch && matchesDept && matchesRole;
   });
 
-  const handleAddUser = (e: React.FormEvent) => {
+  const handleAddUser = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (editingUser) {
-      updateUser({
-        ...editingUser,
-        name: newUser.name,
-        login: newUser.login,
-        role: newUser.role,
-        department: newUser.department,
-      });
-    } else {
-      const userToAdd: User = {
-        id: crypto.randomUUID(),
-        name: newUser.name,
-        login: newUser.email, // Use email as login
-        role: newUser.role,
-        department: newUser.department,
-      };
-      addUser(userToAdd, newUser.password);
+    try {
+      if (editingUser) {
+        await updateUser({
+          ...editingUser,
+          name: newUser.name,
+          login: newUser.email, // Use email as login consistently
+          role: newUser.role,
+          department: newUser.department,
+        });
+      } else {
+        const userToAdd: User = {
+          id: crypto.randomUUID(),
+          name: newUser.name,
+          login: newUser.email, // Use email as login
+          role: newUser.role,
+          department: newUser.department,
+        };
+        await addUser(userToAdd, newUser.password);
+      }
+      setShowModal(false);
+      setEditingUser(null);
+      setNewUser({ name: '', email: '', login: '', password: '', role: 'Consultor', department: 'Comercial' });
+    } catch (error: any) {
+      console.error('Error saving user:', error);
+      alert('Erro ao salvar usuário: ' + (error.message || 'Verifique os dados e tente novamente.'));
     }
-    setShowModal(false);
-    setEditingUser(null);
-    setNewUser({ name: '', email: '', login: '', password: '', role: 'Consultor', department: 'Comercial' });
   };
 
   const handleEdit = (user: User) => {

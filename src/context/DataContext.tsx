@@ -161,21 +161,49 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (authError) {
         console.error('Error signing up user in Auth:', authError);
-        // If the user already exists in Auth, we might still want to add them to the users table
-        if (!authError.message.includes('User already registered')) {
+        
+        // If the user already exists in Auth, try to sign in to get their ID
+        if (authError.message.includes('User already registered')) {
+          const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+            email: user.login,
+            password: password
+          });
+
+          if (signInError) {
+            console.error('Error signing in to get existing user ID:', signInError);
+            throw new Error('Este e-mail já está registrado no sistema de autenticação, mas a senha fornecida está incorreta ou o e-mail não foi confirmado.');
+          }
+
+          if (signInData?.user) {
+            user.id = signInData.user.id;
+          }
+        } else {
           throw authError;
         }
-      }
-
-      // Use the ID from Auth if available
-      if (authData?.user) {
+      } else if (authData?.user) {
         user.id = authData.user.id;
       }
     }
 
-    const { error } = await supabase.from('users').insert([user]);
+    // Check if a user with the same login already exists in the users table
+    // This handles cases where a user was added manually to the DB with a different ID
+    const { data: existingUser } = await supabase
+      .from('users')
+      .select('id')
+      .eq('login', user.login)
+      .single();
+
+    if (existingUser && existingUser.id !== user.id) {
+      console.log('Found existing user with same login but different ID. Deleting to repair link.');
+      // We delete the old record to avoid unique constraint violations on 'login'
+      // and to ensure the ID matches the Auth ID.
+      await supabase.from('users').delete().eq('id', existingUser.id);
+    }
+
+    // Use upsert to handle cases where the user might already exist in the users table
+    const { error } = await supabase.from('users').upsert([user], { onConflict: 'id' });
     if (error) {
-      console.error('Error adding user to database:', error);
+      console.error('Error adding/updating user in database:', error);
       throw error;
     }
   };
