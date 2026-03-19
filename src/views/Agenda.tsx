@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Clock, Plus, ExternalLink, Calendar as CalendarIcon, X } from 'lucide-react';
+import { useData } from '../context/DataContext';
+import { AgendaItem } from '../types';
+import { Clock, Plus, ExternalLink, Calendar as CalendarIcon, X, Trash2 } from 'lucide-react';
 
 export const Agenda: React.FC = () => {
   const { user } = useAuth();
+  const { agenda, addAgendaItem, deleteAgendaItem } = useData();
   const [view, setView] = useState<'Dia' | 'Semana' | 'Mês'>('Dia');
   const [showModal, setShowModal] = useState(false);
-  const [events, setEvents] = useState<any[]>([]);
 
   const [newEvent, setNewEvent] = useState({
     title: '',
@@ -15,15 +17,36 @@ export const Agenda: React.FC = () => {
     description: ''
   });
 
-  const handleAddEvent = (e: React.FormEvent) => {
+  const handleAddEvent = async (e: React.FormEvent) => {
     e.preventDefault();
-    const event = {
-      id: Math.random().toString(36).substr(2, 9),
-      ...newEvent
+    if (!user) return;
+
+    const event: AgendaItem = {
+      id: crypto.randomUUID(),
+      ...newEvent,
+      userId: user.id,
+      createdAt: new Date().toISOString()
     };
-    setEvents([...events, event]);
-    setShowModal(false);
-    setNewEvent({ title: '', time: '', date: new Date().toISOString().split('T')[0], description: '' });
+    
+    try {
+      await addAgendaItem(event);
+      setShowModal(false);
+      setNewEvent({ title: '', time: '', date: new Date().toISOString().split('T')[0], description: '' });
+    } catch (error) {
+      console.error('Error saving event:', error);
+      alert('Erro ao salvar evento.');
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (window.confirm('Deseja realmente excluir este compromisso?')) {
+      try {
+        await deleteAgendaItem(id);
+      } catch (error) {
+        console.error('Error deleting event:', error);
+        alert('Erro ao excluir evento.');
+      }
+    }
   };
 
   const openGoogleCalendar = (event: any) => {
@@ -57,7 +80,10 @@ export const Agenda: React.FC = () => {
               {view === 'Dia' ? 'Compromissos do Dia' : view === 'Semana' ? 'Visão Semanal' : 'Visão Mensal'}
             </h3>
             <p className="text-sm text-slate-500">
-              {view === 'Dia' ? 'Terça-feira, 17 de Março de 2024' : 'Março de 2024'}
+              {view === 'Dia' 
+                ? new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+                : new Date().toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
+              }
             </p>
           </div>
           <div className="flex bg-slate-100 p-1 rounded-xl">
@@ -76,9 +102,15 @@ export const Agenda: React.FC = () => {
         </div>
 
         <div className="flex-1 p-6 space-y-6 overflow-y-auto custom-scrollbar">
-          {events.length > 0 ? (
-            events
-              .filter(e => view === 'Dia' ? e.date === '2024-03-17' : true)
+          {agenda.length > 0 ? (
+            agenda
+              .filter(e => {
+                if (view === 'Dia') {
+                  const today = new Date().toISOString().split('T')[0];
+                  return e.date === today;
+                }
+                return true;
+              })
               .sort((a, b) => a.time.localeCompare(b.time))
               .map(event => (
                 <div key={event.id} className="flex gap-6 group">
@@ -92,13 +124,21 @@ export const Agenda: React.FC = () => {
                         <h4 className="font-bold text-slate-800">{event.title}</h4>
                         <p className="text-sm text-slate-500 leading-relaxed mt-1">{event.description}</p>
                       </div>
-                      <button 
-                        onClick={() => openGoogleCalendar(event)}
-                        className="flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-200 text-slate-600 rounded-lg text-[10px] font-bold hover:bg-slate-50 transition-all shadow-sm"
-                      >
-                        <ExternalLink size={12} />
-                        Google Agenda
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button 
+                          onClick={() => openGoogleCalendar(event)}
+                          className="flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-200 text-slate-600 rounded-lg text-[10px] font-bold hover:bg-slate-50 transition-all shadow-sm"
+                        >
+                          <ExternalLink size={12} />
+                          Google Agenda
+                        </button>
+                        <button 
+                          onClick={() => handleDelete(event.id)}
+                          className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
                     </div>
                     <div className="mt-4 flex items-center gap-4">
                       <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400 uppercase">

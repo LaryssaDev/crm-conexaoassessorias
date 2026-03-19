@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
-import { User, Lead, FixedCost, Transaction, HistoryRecord } from '../types';
+import { User, Lead, FixedCost, Transaction, HistoryRecord, AgendaItem } from '../types';
 import { INITIAL_USERS, INITIAL_LEADS, INITIAL_COSTS, INITIAL_TRANSACTIONS, INITIAL_HISTORY } from '../constants';
 import { supabase } from '../lib/supabase';
 import { useNotifications } from './NotificationContext';
@@ -10,6 +10,7 @@ interface DataContextType {
   costs: FixedCost[];
   transactions: Transaction[];
   history: HistoryRecord[];
+  agenda: AgendaItem[];
   loading: boolean;
   comercialTarget: number;
   juridicoTarget: number;
@@ -29,6 +30,8 @@ interface DataContextType {
   deleteTransaction: (id: string) => Promise<void>;
   addHistory: (record: HistoryRecord) => Promise<void>;
   toggleCostStatus: (id: string) => Promise<void>;
+  addAgendaItem: (item: AgendaItem) => Promise<void>;
+  deleteAgendaItem: (id: string) => Promise<void>;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -40,6 +43,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [costs, setCosts] = useState<FixedCost[]>(INITIAL_COSTS);
   const [transactions, setTransactions] = useState<Transaction[]>(INITIAL_TRANSACTIONS);
   const [history, setHistory] = useState<HistoryRecord[]>(INITIAL_HISTORY);
+  const [agenda, setAgenda] = useState<AgendaItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [lastResetDate, setLastResetDate] = useState<string | null>(localStorage.getItem('last_cost_reset'));
   const [comercialTarget, setComercialTargetState] = useState<number>(() => {
@@ -71,13 +75,15 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
           { data: leadsData },
           { data: costsData },
           { data: transactionsData },
-          { data: historyData }
+          { data: historyData },
+          { data: agendaData }
         ] = await Promise.all([
           supabase.from('users').select('*'),
           supabase.from('leads').select('*').order('created_at', { ascending: false }),
           supabase.from('fixed_costs').select('*').order('due_date', { ascending: true }),
           supabase.from('transactions').select('*').order('date', { ascending: false }),
-          supabase.from('history_records').select('*').order('created_at', { ascending: false })
+          supabase.from('history_records').select('*').order('created_at', { ascending: false }),
+          supabase.from('agenda').select('*').order('date', { ascending: true })
         ]);
 
         if (usersData) {
@@ -125,6 +131,13 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
             paymentMethod: h.payment_method || h.paymentMethod,
             installments: h.installments,
             createdAt: h.created_at || h.createdAt
+          })));
+        }
+        if (agendaData) {
+          setAgenda(agendaData.map((a: any) => ({
+            ...a,
+            userId: a.user_id,
+            createdAt: a.created_at
           })));
         }
       } catch (error) {
@@ -431,6 +444,29 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const addAgendaItem = async (item: AgendaItem) => {
+    const dbItem = {
+      title: item.title,
+      date: item.date,
+      time: item.time,
+      description: item.description,
+      user_id: item.userId
+    };
+    const { error } = await supabase.from('agenda').insert([dbItem]);
+    if (error) {
+      console.error('Error adding agenda item:', error);
+      throw error;
+    }
+  };
+
+  const deleteAgendaItem = async (id: string) => {
+    const { error } = await supabase.from('agenda').delete().eq('id', id);
+    if (error) {
+      console.error('Error deleting agenda item:', error);
+      throw error;
+    }
+  };
+
   const toggleCostStatus = useCallback(async (id: string) => {
     const costToToggle = costs.find(c => c.id === id);
     if (!costToToggle) return;
@@ -474,7 +510,10 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       addCost, updateCost, deleteCost,
       addTransaction, updateTransaction, deleteTransaction,
       addHistory,
-      toggleCostStatus
+      toggleCostStatus,
+      agenda,
+      addAgendaItem,
+      deleteAgendaItem
     }}>
       {children}
     </DataContext.Provider>

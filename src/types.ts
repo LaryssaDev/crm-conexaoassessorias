@@ -76,6 +76,16 @@ export interface Transaction {
   costId?: string;
 }
 
+export interface AgendaItem {
+  id: string;
+  title: string;
+  date: string;
+  time: string;
+  description: string;
+  userId: string;
+  createdAt: string;
+}
+
 export interface Team {
   id: string;
   name: string;
