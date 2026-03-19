@@ -67,15 +67,43 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
 
     // Initial session check
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(({ data: { session }, error }) => {
+      if (error) {
+        console.error('Initial session check error:', error.message);
+        // If it's a refresh token error or session error, clear the session to allow a clean login
+        const isRefreshTokenError = 
+          error.message.toLowerCase().includes('refresh token') || 
+          error.message.toLowerCase().includes('refresh_token') ||
+          error.message.toLowerCase().includes('session_not_found');
+
+        if (isRefreshTokenError) {
+          supabase.auth.signOut().finally(() => {
+            if (mounted) {
+              setUser(null);
+              setLoading(false);
+            }
+          });
+          return;
+        }
+        
+        if (mounted) setLoading(false);
+        return;
+      }
+
       if (session?.user) {
         fetchProfile(session.user);
       } else {
         if (mounted) setLoading(false);
       }
     }).catch(err => {
-      console.error('Initial session check error:', err);
-      if (mounted) setLoading(false);
+      console.error('Initial session check exception:', err);
+      // On exception, try to clear session just in case
+      supabase.auth.signOut().finally(() => {
+        if (mounted) {
+          setUser(null);
+          setLoading(false);
+        }
+      });
     });
 
     // Listen for changes on auth state

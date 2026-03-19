@@ -3,6 +3,7 @@ import { User, Lead, FixedCost, Transaction, HistoryRecord, AgendaItem } from '.
 import { INITIAL_USERS, INITIAL_LEADS, INITIAL_COSTS, INITIAL_TRANSACTIONS, INITIAL_HISTORY } from '../constants';
 import { supabase } from '../lib/supabase';
 import { useNotifications } from './NotificationContext';
+import { useAuth } from './AuthContext';
 
 interface DataContextType {
   users: User[];
@@ -37,6 +38,7 @@ interface DataContextType {
 const DataContext = createContext<DataContextType | undefined>(undefined);
 
 export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { user } = useAuth();
   const { addNotification } = useNotifications();
   const [users, setUsers] = useState<User[]>(INITIAL_USERS);
   const [leads, setLeads] = useState<Lead[]>(INITIAL_LEADS);
@@ -44,7 +46,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [transactions, setTransactions] = useState<Transaction[]>(INITIAL_TRANSACTIONS);
   const [history, setHistory] = useState<HistoryRecord[]>(INITIAL_HISTORY);
   const [agenda, setAgenda] = useState<AgendaItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [lastResetDate, setLastResetDate] = useState<string | null>(localStorage.getItem('last_cost_reset'));
   const [comercialTarget, setComercialTargetState] = useState<number>(() => {
     const saved = localStorage.getItem('comercial_target');
@@ -67,16 +69,27 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Fetch initial data from Supabase
   useEffect(() => {
+    if (!user) {
+      setUsers(INITIAL_USERS);
+      setLeads(INITIAL_LEADS);
+      setCosts(INITIAL_COSTS);
+      setTransactions(INITIAL_TRANSACTIONS);
+      setHistory(INITIAL_HISTORY);
+      setAgenda([]);
+      setLoading(false);
+      return;
+    }
+
     const fetchData = async () => {
       setLoading(true);
       try {
         const [
-          { data: usersData },
-          { data: leadsData },
-          { data: costsData },
-          { data: transactionsData },
-          { data: historyData },
-          { data: agendaData }
+          { data: usersData, error: usersError },
+          { data: leadsData, error: leadsError },
+          { data: costsData, error: costsError },
+          { data: transactionsData, error: transactionsError },
+          { data: historyData, error: historyError },
+          { data: agendaData, error: agendaError }
         ] = await Promise.all([
           supabase.from('users').select('*'),
           supabase.from('leads').select('*').order('created_at', { ascending: false }),
@@ -85,6 +98,16 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
           supabase.from('history_records').select('*').order('created_at', { ascending: false }),
           supabase.from('agenda').select('*').order('date', { ascending: true })
         ]);
+
+        // Handle potential auth errors (401 Unauthorized)
+        const errors = [usersError, leadsError, costsError, transactionsError, historyError, agendaError].filter(Boolean);
+        if (errors.some(err => err?.message.includes('JWT') || err?.message.includes('Unauthorized') || err?.code === 'PGRST301')) {
+          console.error('Auth error detected during data fetch. Session might be invalid.');
+          // AuthContext will handle the actual logout via onAuthStateChange if the session is truly gone,
+          // but we can at least stop loading here.
+          setLoading(false);
+          return;
+        }
 
         if (usersData) {
           setUsers(usersData.length > 0 ? usersData.map((u: any) => ({
@@ -183,7 +206,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       supabase.removeChannel(transactionsSub);
       supabase.removeChannel(historySub);
     };
-  }, []);
+  }, [user, addNotification]);
+
 
   useEffect(() => {
     const now = new Date();

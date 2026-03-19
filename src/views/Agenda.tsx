@@ -9,6 +9,8 @@ export const Agenda: React.FC = () => {
   const { agenda, addAgendaItem, deleteAgendaItem } = useData();
   const [view, setView] = useState<'Dia' | 'Semana' | 'Mês'>('Dia');
   const [showModal, setShowModal] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState<string | null>(null);
 
   const [newEvent, setNewEvent] = useState({
     title: '',
@@ -39,13 +41,19 @@ export const Agenda: React.FC = () => {
   };
 
   const handleDelete = async (id: string) => {
-    if (window.confirm('Deseja realmente excluir este compromisso?')) {
-      try {
-        await deleteAgendaItem(id);
-      } catch (error) {
-        console.error('Error deleting event:', error);
-        alert('Erro ao excluir evento.');
-      }
+    setItemToDelete(id);
+    setShowDeleteConfirm(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!itemToDelete) return;
+    try {
+      await deleteAgendaItem(itemToDelete);
+      setShowDeleteConfirm(false);
+      setItemToDelete(null);
+    } catch (error) {
+      console.error('Error deleting event:', error);
+      alert('Erro ao excluir evento.');
     }
   };
 
@@ -161,6 +169,38 @@ export const Agenda: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden p-6">
+            <div className="text-center mb-6">
+              <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Trash2 className="text-red-500 w-8 h-8" />
+              </div>
+              <h3 className="text-lg font-bold text-slate-800">Excluir Compromisso</h3>
+              <p className="text-sm text-slate-500 mt-2">Deseja realmente excluir este compromisso? Esta ação não pode ser desfeita.</p>
+            </div>
+            <div className="flex gap-3">
+              <button 
+                onClick={() => {
+                  setShowDeleteConfirm(false);
+                  setItemToDelete(null);
+                }}
+                className="flex-1 py-2.5 text-sm font-bold text-slate-600 bg-white border border-slate-200 rounded-xl hover:bg-slate-100 transition-all"
+              >
+                Cancelar
+              </button>
+              <button 
+                onClick={confirmDelete}
+                className="flex-1 py-2.5 text-sm font-bold text-white bg-red-500 rounded-xl shadow-lg shadow-red-500/20 hover:bg-red-600 transition-all"
+              >
+                Excluir
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* New Event Modal */}
       {showModal && (

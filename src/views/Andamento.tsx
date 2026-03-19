@@ -23,6 +23,14 @@ export const Andamento: React.FC = () => {
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [history, setHistory] = useState<HistoryRecord[]>([]);
   const [showModal, setShowModal] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+
+  // Filter leads based on search term
+  const filteredLeads = (leads || []).filter(lead => 
+    (lead.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (lead.cpf || '').includes(searchTerm) ||
+    (lead.phone || '').includes(searchTerm)
+  );
 
   // Update local history when dataHistory or selectedLead changes
   React.useEffect(() => {
@@ -109,12 +117,14 @@ export const Andamento: React.FC = () => {
           <input 
             type="text" 
             placeholder="Buscar cliente..." 
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full bg-white border border-slate-200 rounded-xl py-2.5 pl-10 pr-4 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all"
           />
         </div>
 
         <div className="space-y-3">
-          {(leads || []).map((lead) => (
+          {filteredLeads.map((lead) => (
             <button
               key={lead.id}
               onClick={() => setSelectedLead(lead)}
