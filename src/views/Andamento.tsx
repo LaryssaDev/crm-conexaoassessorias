@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
+import { useNotifications } from '../context/NotificationContext';
 import { HistoryRecord, Lead, Department } from '../types';
 import { parseCurrency } from '../utils/format';
 import { 
@@ -18,6 +19,7 @@ import {
 export const Andamento: React.FC = () => {
   const { user } = useAuth();
   const { users, leads, history: dataHistory, addHistory, addTransaction } = useData();
+  const { addNotification } = useNotifications();
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [history, setHistory] = useState<HistoryRecord[]>([]);
   const [showModal, setShowModal] = useState(false);
@@ -79,6 +81,12 @@ export const Andamento: React.FC = () => {
           date: new Date().toISOString().split('T')[0],
           category: 'Vendas'
         });
+        
+        addNotification(
+          'Pagamento Recebido',
+          `Pagamento de R$ ${parseCurrency(newValue).toLocaleString()} recebido de ${selectedLead.name}.`,
+          'payment'
+        );
       }
 
       setShowModal(false);

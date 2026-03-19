@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
+import { useNotifications } from '../context/NotificationContext';
 import { Lead } from '../types';
 import { parseCurrency } from '../utils/format';
 import { 
@@ -19,11 +20,13 @@ import {
 export const Leads: React.FC = () => {
   const { user } = useAuth();
   const { leads, addLead, updateLead, deleteLead } = useData();
+  const { addNotification } = useNotifications();
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingLead, setEditingLead] = useState<Lead | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
   
   // Form state for new lead
   const [newLead, setNewLead] = useState({
@@ -62,6 +65,11 @@ export const Leads: React.FC = () => {
       createdAt: new Date().toISOString()
     };
     addLead(lead);
+    addNotification(
+      'Novo Cliente',
+      `O cliente ${lead.name} foi adicionado com sucesso.`,
+      'lead'
+    );
     setShowAddModal(false);
     setNewLead({ name: '', cpf: '', phone: '', email: '', origin: 'Instagram', contractType: 'Veiculo', installmentValue: '' });
   };
@@ -80,6 +88,113 @@ export const Leads: React.FC = () => {
       deleteLead(showDeleteConfirm);
       setShowDeleteConfirm(null);
     }
+  };
+
+  const exportLeads = () => {
+    const headers = ['Nome', 'CPF', 'Telefone', 'E-mail', 'Origem', 'Tipo de Contrato', 'Valor da Parcela', 'Status', 'Data de Criação'];
+    const csvContent = [
+      headers.join(';'),
+      ...leads.map(l => [
+        `"${(l.name || '').replace(/"/g, '""')}"`,
+        `"${(l.cpf || '').replace(/"/g, '""')}"`,
+        `"${(l.phone || '').replace(/"/g, '""')}"`,
+        `"${(l.email || '').replace(/"/g, '""')}"`,
+        `"${(l.origin || '').replace(/"/g, '""')}"`,
+        `"${(l.contractType || '').replace(/"/g, '""')}"`,
+        (l.installmentValue || 0).toString().replace('.', ','),
+        `"${(l.status || '').replace(/"/g, '""')}"`,
+        `"${(l.createdAt || '').replace(/"/g, '""')}"`
+      ].join(';'))
+    ].join('\n');
+
+    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', 'leads_export.csv');
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleImportClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target?.result as string;
+      const lines = text.split(/\r?\n/);
+      
+      if (lines.length < 2) return;
+
+      // Detect delimiter
+      const firstLine = lines[0];
+      const delimiter = firstLine.includes(';') ? ';' : ',';
+
+      const importedLeads: Lead[] = [];
+      
+      for (let i = 1; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (!line) continue;
+        
+        // Robust CSV parser that handles quotes and empty fields
+        const values: string[] = [];
+        let current = '';
+        let inQuotes = false;
+        for (let j = 0; j < line.length; j++) {
+          const char = line[j];
+          if (char === '"') {
+            if (inQuotes && line[j+1] === '"') {
+              current += '"';
+              j++;
+            } else {
+              inQuotes = !inQuotes;
+            }
+          } else if (char === delimiter && !inQuotes) {
+            values.push(current);
+            current = '';
+          } else {
+            current += char;
+          }
+        }
+        values.push(current);
+
+        if (values.length < 4) continue;
+
+        const lead: Lead = {
+          id: crypto.randomUUID(),
+          name: values[0] || '',
+          cpf: values[1] || '',
+          phone: values[2] || '',
+          email: values[3] || '',
+          origin: values[4] || 'Instagram',
+          contractType: values[5] || 'Veiculo',
+          installmentValue: Number((values[6] || '0').replace(',', '.')),
+          status: (values[7] || 'Novo') as any,
+          assignedTo: user?.id,
+          createdAt: values[8] || new Date().toISOString()
+        };
+        
+        importedLeads.push(lead);
+      }
+
+      if (importedLeads.length > 0) {
+        importedLeads.forEach(lead => addLead(lead));
+        alert(`${importedLeads.length} leads importados com sucesso!`);
+      } else {
+        alert('Nenhum lead válido encontrado no arquivo.');
+      }
+      
+      // Reset input
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    };
+    reader.readAsText(file);
   };
 
   if (!leads) return null;
@@ -104,15 +219,22 @@ export const Leads: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-3">
+          <input 
+            type="file" 
+            ref={fileInputRef} 
+            onChange={handleFileImport} 
+            accept=".csv" 
+            className="hidden" 
+          />
           <button 
-            onClick={() => alert('Funcionalidade de importação em breve!')}
+            onClick={handleImportClick}
             className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-50 font-medium text-sm transition-all"
           >
             <Upload size={18} />
             Importar
           </button>
           <button 
-            onClick={() => alert('Exportando dados para Excel...')}
+            onClick={exportLeads}
             className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-50 font-medium text-sm transition-all"
           >
             <Download size={18} />

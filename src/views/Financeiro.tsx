@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
+import { useNotifications } from '../context/NotificationContext';
 import { parseCurrency } from '../utils/format';
 import { 
   DollarSign, 
@@ -9,6 +10,7 @@ import {
   Plus, 
   Filter, 
   Download,
+  Upload,
   TrendingUp,
   X,
   CheckCircle2,
@@ -29,8 +31,10 @@ import { Transaction } from '../types';
 export const Financeiro: React.FC = () => {
   const { user } = useAuth();
   const { transactions, addTransaction, deleteTransaction } = useData();
+  const { addNotification } = useNotifications();
   const [showModal, setShowModal] = useState(false);
   const [showFullExtrato, setShowFullExtrato] = useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
   const [newTransaction, setNewTransaction] = useState({
     description: '',
     value: '' as any,
@@ -74,6 +78,11 @@ export const Financeiro: React.FC = () => {
       value: parseCurrency(newTransaction.value)
     };
     addTransaction(transactionToAdd);
+    addNotification(
+      transactionToAdd.type === 'Entrada' ? 'Entrada Registrada' : 'Saída Registrada',
+      `${transactionToAdd.description}: R$ ${transactionToAdd.value.toLocaleString()}`,
+      'payment'
+    );
     setShowModal(false);
     setNewTransaction({
       description: '',
@@ -87,17 +96,17 @@ export const Financeiro: React.FC = () => {
   const exportTransactions = () => {
     const headers = ['Data', 'Descrição', 'Tipo', 'Categoria', 'Valor'];
     const csvContent = [
-      headers.join(','),
+      headers.join(';'),
       ...transactions.map(t => [
-        t.date ? new Date(t.date).toLocaleDateString() : 'N/A',
-        t.description || '',
-        t.type || '',
-        t.category || '',
-        Number(t.value) || 0
-      ].join(','))
+        `"${(t.date || '').replace(/"/g, '""')}"`,
+        `"${(t.description || '').replace(/"/g, '""')}"`,
+        `"${(t.type || '').replace(/"/g, '""')}"`,
+        `"${(t.category || '').replace(/"/g, '""')}"`,
+        (t.value || 0).toString().replace('.', ',')
+      ].join(';'))
     ].join('\n');
 
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     const url = URL.createObjectURL(blob);
     link.setAttribute('href', url);
@@ -108,6 +117,79 @@ export const Financeiro: React.FC = () => {
     document.body.removeChild(link);
   };
 
+  const handleImportClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target?.result as string;
+      const lines = text.split(/\r?\n/);
+      
+      if (lines.length < 2) return;
+
+      // Detect delimiter
+      const firstLine = lines[0];
+      const delimiter = firstLine.includes(';') ? ';' : ',';
+
+      const importedTransactions: Transaction[] = [];
+      
+      for (let i = 1; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (!line) continue;
+        
+        // Robust CSV parser that handles quotes and empty fields
+        const values: string[] = [];
+        let current = '';
+        let inQuotes = false;
+        for (let j = 0; j < line.length; j++) {
+          const char = line[j];
+          if (char === '"') {
+            if (inQuotes && line[j+1] === '"') {
+              current += '"';
+              j++;
+            } else {
+              inQuotes = !inQuotes;
+            }
+          } else if (char === delimiter && !inQuotes) {
+            values.push(current);
+            current = '';
+          } else {
+            current += char;
+          }
+        }
+        values.push(current);
+
+        if (values.length < 5) continue;
+
+        const transaction: Transaction = {
+          id: crypto.randomUUID(),
+          date: values[0] || new Date().toISOString().split('T')[0],
+          description: values[1] || '',
+          type: (values[2] || 'Entrada') as 'Entrada' | 'Saída',
+          category: values[3] || 'Vendas',
+          value: Number((values[4] || '0').replace(',', '.'))
+        };
+        
+        importedTransactions.push(transaction);
+      }
+
+      if (importedTransactions.length > 0) {
+        importedTransactions.forEach(t => addTransaction(t));
+        alert(`${importedTransactions.length} transações importadas com sucesso!`);
+      } else {
+        alert('Nenhuma transação válida encontrada no arquivo.');
+      }
+      
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    };
+    reader.readAsText(file);
+  };
+
   return (
     <div className="space-y-8">
       <div className="flex items-center justify-between">
@@ -116,6 +198,20 @@ export const Financeiro: React.FC = () => {
           <p className="text-sm text-slate-500">Controle de fluxo de caixa e transações</p>
         </div>
         <div className="flex gap-3">
+          <input 
+            type="file" 
+            ref={fileInputRef} 
+            onChange={handleFileImport} 
+            accept=".csv" 
+            className="hidden" 
+          />
+          <button 
+            onClick={handleImportClick}
+            className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 text-slate-600 rounded-xl font-bold text-sm hover:bg-slate-50 transition-all"
+          >
+            <Upload size={18} />
+            Importar
+          </button>
           <button 
             onClick={exportTransactions}
             className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 text-slate-600 rounded-xl font-bold text-sm hover:bg-slate-50 transition-all"
