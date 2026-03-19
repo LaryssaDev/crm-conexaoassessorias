@@ -48,10 +48,11 @@ export const Andamento: React.FC = () => {
 
     // If it's a payment, we need to link it to the assigned consultant for ranking purposes
     if (newType === 'Pagamento') {
+      const adminId = users.find(u => u.role === 'Administrador')?.id || user?.id || '';
       if (newDept === 'Comercial') {
-        assignedUserId = selectedLead.consultorComercialId || '1'; // '1' is Aline Ferreira (Admin)
+        assignedUserId = selectedLead.consultorComercialId || adminId;
       } else if (newDept === 'Jurídico') {
-        assignedUserId = selectedLead.consultorJuridicoId || '1';
+        assignedUserId = selectedLead.consultorJuridicoId || adminId;
       }
     }
 
