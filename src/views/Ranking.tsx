@@ -11,7 +11,7 @@ export const Ranking: React.FC = () => {
   const consultants = users.filter(u => u.department === selectedDept && u.role === 'Consultor');
   
   // Add Aline Ferreira if she's the admin and might have sales
-  const admins = users.filter(u => u.role === 'Administrador');
+  const admins = users.filter(u => u.role === 'Administrador' || u.role === 'Financeiro');
   const allPotentialSellers = [...consultants, ...admins];
 
   const rankingData = allPotentialSellers.map(consultant => {

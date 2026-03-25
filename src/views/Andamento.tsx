@@ -259,7 +259,9 @@ export const Andamento: React.FC = () => {
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Tipo de Registro</label>
                 <div className="grid grid-cols-3 gap-2">
-                  {(['Contato', 'Observação', 'Pagamento'] as const).map(t => (
+                  {(['Contato', 'Observação', 'Pagamento'] as const)
+                    .filter(t => t !== 'Pagamento' || user?.role === 'Administrador' || user?.role === 'Financeiro')
+                    .map(t => (
                     <button
                       key={t}
                       onClick={() => setNewType(t)}

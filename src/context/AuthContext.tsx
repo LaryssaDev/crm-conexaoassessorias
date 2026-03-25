@@ -164,6 +164,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       case 'Funil':
       case 'Ranking':
       case 'Agenda':
+      case 'Ponto':
         return true; // Everyone has access to these basic ones (with data filtering)
       
       case 'Atribuição':
@@ -175,8 +176,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       case 'Equipe':
         return role === 'Administrador' || role === 'Supervisor' || role === 'Financeiro';
       
-      case 'Contrato':
-        return role === 'Administrador' || (role === 'Supervisor' && user.department === 'Comercial') || (role === 'Consultor' && user.department === 'Comercial');
+      case "PDF's":
+        return role === 'Administrador' || role === 'Financeiro' || (role === 'Supervisor' && user.department === 'Comercial') || (role === 'Consultor' && user.department === 'Comercial');
       
       case 'Custos Fixos':
       case 'Financeiro':

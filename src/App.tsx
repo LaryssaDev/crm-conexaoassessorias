@@ -14,6 +14,7 @@ import { Meta } from './views/Meta';
 import { Ranking } from './views/Ranking';
 import { Agenda } from './views/Agenda';
 import { Equipe } from './views/Equipe';
+import { Ponto } from './views/Ponto';
 import { Contrato } from './views/Contrato';
 import { CustosFixos } from './views/CustosFixos';
 import { Financeiro } from './views/Financeiro';
@@ -50,7 +51,8 @@ const AppContent: React.FC = () => {
       case 'Ranking': return <Ranking />;
       case 'Agenda': return <Agenda />;
       case 'Equipe': return <Equipe />;
-      case 'Contrato': return <Contrato />;
+      case 'Ponto': return <Ponto />;
+      case "PDF's": return <Contrato />;
       case 'Custos Fixos': return <CustosFixos />;
       case 'Financeiro': return <Financeiro />;
       default: return <Dashboard />;

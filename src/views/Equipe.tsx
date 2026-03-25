@@ -203,7 +203,7 @@ export const Equipe: React.FC = () => {
                   </div>
                   <div className="flex items-center gap-2 text-xs text-slate-600">
                     <Shield size={14} className="text-slate-400" />
-                    Acesso {u.role === 'Administrador' ? 'Total' : 'Restrito'}
+                    Acesso {(u.role === 'Administrador' || u.role === 'Financeiro') ? 'Total' : 'Restrito'}
                   </div>
                 </div>
               </div>

@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
-import { Lead } from '../types';
-import { FileText, Download, Printer, CheckCircle2, Search, Calendar, MapPin, CreditCard, User as UserIcon } from 'lucide-react';
+import { Lead, cn } from '../types';
+import { FileText, Download, Printer, CheckCircle2, Search, Calendar, MapPin, CreditCard, User as UserIcon, X } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 
 export const Contrato: React.FC = () => {
@@ -10,6 +10,22 @@ export const Contrato: React.FC = () => {
   const { leads } = useData();
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isGeneratingReceipt, setIsGeneratingReceipt] = useState(false);
+  const [isGeneratingAuthorization, setIsGeneratingAuthorization] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   const [contractInfo, setContractInfo] = useState({
     estadoCivil: '',
     endereco: '',
@@ -49,6 +65,17 @@ export const Contrato: React.FC = () => {
     ];
     return `${date.getDate()} de ${months[date.getMonth()]} de ${date.getFullYear()}`;
   };
+  const filteredLeads = leads.filter(lead => 
+    lead.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    lead.cpf.includes(searchTerm)
+  );
+
+  const handleSelectLead = (lead: Lead) => {
+    setSelectedLead(lead);
+    setSearchTerm(lead.name);
+    setIsDropdownOpen(false);
+  };
+
   const generatePDF = async () => {
     if (!selectedLead) return;
     setIsGenerating(true);
@@ -92,7 +119,7 @@ export const Contrato: React.FC = () => {
       doc.setFontSize(12);
          const contractText = `Por este presente instrumento particular de prestação de serviços, as partes:
 
-CONEXAO ASSESSORIA, regularmente inscrita no CNPJ sob o nº 37.423.637/0001-09, com sede social na R. Benjamin Pereira, 246 – Jaçanã, São Paulo – SP, 02274-000, doravante denominado CONTRATADO, e;
+CONEXAO ASSESSORIA, regularmente inscrita no CNPJ sob o nº 37.423.637/0001-09, com sede social na R. Benjamin Pereira, 246 –\u200B Jaçanã, São\u00A0Paulo\u00A0–\u00A0SP, 02274-000, doravante denominado CONTRATADO, e;
 
 aaaaaaaaaaaaaaaaaaaaaaa, bbbbbbbbb, inscrito (a) no CPF sob o Nº XXX.XXX.XXX-XX residente e domiciliada yyyyyyyyyyyyy qq – llllllllllllllllllll gggggggggg- cc – CEP: pppppppppppp, doravante denominado CONTRATANTE;
 
@@ -196,22 +223,29 @@ São Paulo, xx de xxxxxxxxxxx de 2026`;
         .replace(/São Paulo, xx de xxxxxxxxxxx de 2026/g, `São Paulo, ${formatDateByExtension(contractInfo.dataContrato)}`);
 
       const paragraphs = finalContent.split('\n').filter(p => p.trim() !== '');
+      const fullAddress = `${contractInfo.endereco} ${contractInfo.numero} – ${contractInfo.bairro} ${contractInfo.cidade}- ${contractInfo.estado} – CEP: ${contractInfo.cep}`;
       const boldKeywords = [
-        'CONEXAO ASSESSORIA', 'INTERMEDIAÇÃO BANCÁRIA', 'CLÁUSULA 1ª', 
+        'CONEXAO ASSESSORIA',
+        'CONTRATANTE', 'CONTRATADA',
+        'INTERMEDIAÇÃO BANCÁRIA', 'CLÁUSULA 1ª', 
         'PARAGRÁFO ÚNICO', 'CLÁUSULA 2ª', 'CLÁUSULA 3ª', 'CLÁUSULA 4ª', 
         'CLÁUSULA 5ª', 'CLÁUSULA 6ª', 'CLÁUSULA 7ª', 'CLÁUSULA 8ª', 
         'AUTENTICIDADE', 'impossibilitará', 'PARAGRAFO PRIMEIRO', 
         'PARÁGRAFO SEGUNDO', 'CLÁUSULA 10ª', 'CLÁUSULA 11ª', 'CLÁUSULA 12ª', 
         'CLÁUSULA 13ª', 'CLÁUSULA 14ª', 'CLÁUSULA 15ª', 'CLÁUSULA 16ª', 
         'CLÁUSULA 17ª', 'CLÁUSULA 18ª', 'CLÁUSULA 19ª',
-        'CONTRATANTE', 'CONTRATADA',
         selectedLead.name,
+        selectedLead.cpf,
+        contractInfo.estadoCivil,
+        fullAddress,
         contractInfo.endereco,
         contractInfo.numero,
         contractInfo.bairro,
-        contractInfo.cidade,
+        `${contractInfo.cidade}-`,
         contractInfo.estado,
+        'CEP:',
         contractInfo.cep,
+        '–',
         contractInfo.credor
       ].filter(Boolean); // Remove any empty values
 
@@ -229,7 +263,7 @@ São Paulo, xx de xxxxxxxxxxx de 2026`;
                 match = false;
                 break;
               }
-              const cleanWord = words[i + j].replace(/[.,:;()]/g, '');
+              const cleanWord = words[i + j].replace(/[.,:;()\-\u2013]/g, '');
               if (cleanWord !== kwWords[j] && words[i + j] !== kwWords[j]) {
                 match = false;
                 break;
@@ -293,7 +327,7 @@ São Paulo, xx de xxxxxxxxxxx de 2026`;
       const spacing = 2;
       
       // Client Signature
-      doc.setFont('helvetica', 'normal');
+      doc.setFont('helvetica', 'bold');
       doc.text('------------------------------------------------------------', margin, currentY + 20);
       doc.text(selectedLead.name, margin, currentY + 25);
       
@@ -301,16 +335,354 @@ São Paulo, xx de xxxxxxxxxxx de 2026`;
       const signatureUrl = 'https://i.imgur.com/BXMTe2D.jpeg';
       const signatureBase64 = await getBase64ImageFromUrl(signatureUrl);
       if (signatureBase64) {
-        doc.addImage(signatureBase64, 'JPEG', margin + signatureWidth + spacing, currentY, 40, 20);
+        doc.addImage(signatureBase64, 'JPEG', margin + signatureWidth + spacing, currentY - 10, 60, 30);
       }
       doc.text('-------------------------------------------------------------', margin + signatureWidth + spacing, currentY + 20);
-      doc.text('CONEXAO ASSESSORIA LTDA', margin + signatureWidth + spacing, currentY + 25);
+      doc.text('CONEXAO ASSESSORIA', margin + signatureWidth + spacing, currentY + 25);
 
       doc.save(`Contrato_${selectedLead.name.replace(/\s/g, '_')}.pdf`);
     } catch (error) {
       console.error("Error generating PDF:", error);
     } finally {
       setIsGenerating(false);
+    }
+  };
+
+  const generateReceiptPDF = async () => {
+    if (!selectedLead) return;
+    setIsGeneratingReceipt(true);
+
+    try {
+      const doc = new jsPDF();
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const margin = 20;
+      const contentWidth = pageWidth - (margin * 2);
+      
+      // Header Logo
+      const logoUrl = 'https://i.imgur.com/pcnXKBK.jpeg';
+      const logoBase64 = await getBase64ImageFromUrl(logoUrl);
+      
+      let currentY = 15; // Start a bit higher to account for the 40px (approx 10.5mm) top margin requirement
+
+      if (logoBase64) {
+        const imgProps = doc.getImageProperties(logoBase64);
+        const maxLogoWidth = 32; // 120px is approx 31.75mm
+        const logoHeight = (imgProps.height * maxLogoWidth) / imgProps.width;
+        // Margem superior de 40px (aprox 10.5mm)
+        currentY = 10.5; 
+        doc.addImage(logoBase64, 'JPEG', (pageWidth - maxLogoWidth) / 2, currentY, maxLogoWidth, logoHeight);
+        currentY += logoHeight + 8; // Margem inferior de 30px (aprox 8mm)
+      }
+
+      // Title
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(16);
+      doc.text('RECIBO DE PAGAMENTO', margin, currentY + 5);
+      currentY += 20;
+
+      // Company Header
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.text('CONEXAO ASSESSORIA', margin, currentY);
+      currentY += 7;
+      doc.setFont('helvetica', 'normal');
+      doc.text('CNPJ 37.423.637/0001-09', margin, currentY);
+      currentY += 20;
+
+      // Body Text
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(11);
+
+      const text1 = "Pelo presente termo fica declarada a contratação de prestação de serviços particular no valor de:";
+      doc.text(text1, margin, currentY);
+      currentY += 10;
+
+      doc.setFont('helvetica', 'bold');
+      doc.text(`VALOR R$ ${contractInfo.valor}`, margin, currentY);
+      currentY += 15;
+
+      doc.setFont('helvetica', 'normal');
+      
+      const bodyText = `Pagos por aaaaaaaaaaaaaaaaaaaaaaa, bbbbbbbbb, inscrito (a) no CPF sob o Nº XXX.XXX.XXX-XX residente e domiciliado (a) yyyyyyyyyyyyy qq llllllllllllllllllll gggggggggg-cc - CEP: pppppppppppp, para a empresa contratada CONEXAO ASSESSORIA, regularmente inscrita no CNPJ sob o nº 37.423.637/0001-09, com sede social na R. Benjamin Pereira, 246 –\u200B Jaçanã, São\u00A0Paulo\u00A0–\u00A0SP, 02274-000, que declara ter recebido nas seguintes condições:`;
+
+      const finalBodyText = bodyText
+        .replace(/aaaaaaaaaaaaaaaaaaaaaaa/g, selectedLead.name)
+        .replace(/bbbbbbbbb/g, contractInfo.estadoCivil)
+        .replace(/XXX\.XXX\.XXX-XX/g, selectedLead.cpf)
+        .replace(/yyyyyyyyyyyyy/g, contractInfo.endereco)
+        .replace(/qq/g, contractInfo.numero)
+        .replace(/llllllllllllllllllll/g, contractInfo.bairro)
+        .replace(/gggggggggg/g, contractInfo.cidade)
+        .replace(/cc/g, contractInfo.estado)
+        .replace(/pppppppppppp/g, contractInfo.cep);
+
+      const fullAddress = `${contractInfo.endereco} ${contractInfo.numero} ${contractInfo.bairro} ${contractInfo.cidade}-${contractInfo.estado} - CEP: ${contractInfo.cep}`;
+      const boldKeywords = [
+        'CONEXAO ASSESSORIA',
+        'CONTRATANTE', 'CONTRATADA',
+        selectedLead.name,
+        selectedLead.cpf,
+        contractInfo.estadoCivil,
+        fullAddress,
+        contractInfo.endereco,
+        contractInfo.numero,
+        contractInfo.bairro,
+        `${contractInfo.cidade}-${contractInfo.estado}`,
+        'CEP:',
+        contractInfo.cep,
+        '-'
+      ].filter(Boolean);
+
+      const renderLine = (line: string, x: number, y: number, width: number) => {
+        const words = line.split(' ');
+        const isBold = new Array(words.length).fill(false);
+
+        for (let i = 0; i < words.length; i++) {
+          for (const kw of boldKeywords) {
+            const kwWords = kw.split(' ');
+            let match = true;
+            for (let j = 0; j < kwWords.length; j++) {
+              if (!words[i + j]) { match = false; break; }
+              const cleanWord = words[i + j].replace(/[.,:;()\-\u2013]/g, '');
+              if (cleanWord !== kwWords[j] && words[i + j] !== kwWords[j]) {
+                match = false;
+                break;
+              }
+            }
+            if (match) {
+              for (let j = 0; j < kwWords.length; j++) { isBold[i + j] = true; }
+            }
+          }
+        }
+
+        let currentX = x;
+        words.forEach((word, index) => {
+          doc.setFont('helvetica', isBold[index] ? 'bold' : 'normal');
+          const text = word + (index < words.length - 1 ? ' ' : '');
+          doc.text(text, currentX, y);
+          currentX += doc.getTextWidth(text);
+        });
+      };
+
+      const lines = doc.splitTextToSize(finalBodyText, contentWidth);
+      lines.forEach((line: string) => {
+        if (currentY + 7 > pageHeight - margin) {
+          doc.addPage();
+          currentY = margin;
+        }
+        renderLine(line, margin, currentY, contentWidth);
+        currentY += 7;
+      });
+
+      currentY += 10;
+      
+      // Payment conditions
+      const formattedDate = contractInfo.dataContrato.split('-').reverse().join('/');
+      const conditionText = `• mmmmmmmmmmmmmmmm (XX) - XX/XX/XXXX`
+        .replace(/mmmmmmmmmmmmmmmm/g, contractInfo.formaPagamento)
+        .replace(/\(XX\)/g, `(${contractInfo.parcelas})`)
+        .replace(/XX\/XX\/XXXX/g, formattedDate);
+
+      const conditionWords = conditionText.split(' ');
+      let condX = margin;
+      conditionWords.forEach((word, index) => {
+        const isBold = word.includes(contractInfo.formaPagamento) || 
+                       word.includes(`(${contractInfo.parcelas})`) || 
+                       word.includes(formattedDate);
+        doc.setFont('helvetica', isBold ? 'bold' : 'normal');
+        const text = word + (index < conditionWords.length - 1 ? ' ' : '');
+        doc.text(text, condX, currentY);
+        condX += doc.getTextWidth(text);
+      });
+      
+      currentY += 15;
+
+      doc.setFont('helvetica', 'normal');
+      doc.text('Sendo expressão de verdade e sem qualquer coação, firmo o presente.', margin, currentY);
+      currentY += 20;
+
+      // Date
+      doc.text(`São Paulo, ${formatDateByExtension(contractInfo.dataContrato)}`, margin, currentY);
+      currentY += 40;
+
+      // Signatures
+      if (currentY + 40 > pageHeight) {
+        doc.addPage();
+        currentY = margin + 20;
+      }
+
+      const signatureLineLength = 80;
+      
+      // Client Signature Line
+      doc.setFont('helvetica', 'normal');
+      doc.text('________________________________', margin, currentY);
+      doc.setFont('helvetica', 'bold');
+      doc.text(selectedLead.name, margin, currentY + 7);
+      
+      // Company Signature Image (next to client signature)
+      const signatureUrl = 'https://i.imgur.com/BXMTe2D.jpeg';
+      const signatureBase64 = await getBase64ImageFromUrl(signatureUrl);
+      if (signatureBase64) {
+        // Positioned to the right of the client signature line
+        doc.addImage(signatureBase64, 'JPEG', margin + signatureLineLength + 10, currentY - 20, 60, 30);
+      }
+
+      doc.save(`Recibo_${selectedLead.name.replace(/\s/g, '_')}.pdf`);
+    } catch (error) {
+      console.error("Error generating Receipt PDF:", error);
+    } finally {
+      setIsGeneratingReceipt(false);
+    }
+  };
+
+  const generateAuthorizationPDF = async () => {
+    if (!selectedLead) return;
+    setIsGeneratingAuthorization(true);
+
+    try {
+      const doc = new jsPDF();
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const margin = 20;
+      const contentWidth = pageWidth - (margin * 2);
+      
+      // Header Logo
+      const logoUrl = 'https://i.imgur.com/pcnXKBK.jpeg';
+      const logoBase64 = await getBase64ImageFromUrl(logoUrl);
+      
+      let currentY = 15;
+
+      if (logoBase64) {
+        const imgProps = doc.getImageProperties(logoBase64);
+        const maxLogoWidth = 32; 
+        const logoHeight = (imgProps.height * maxLogoWidth) / imgProps.width;
+        currentY = 10.5; 
+        doc.addImage(logoBase64, 'JPEG', (pageWidth - maxLogoWidth) / 2, currentY, maxLogoWidth, logoHeight);
+        currentY += logoHeight + 8; 
+      }
+
+      // Title
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(16);
+      doc.text('AUTORIZAÇÃO PARA TRANSAÇÃO FINANCEIRA', margin, currentY + 5);
+      currentY += 20;
+
+      // Company Header
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.text('CONEXAO ASSESSORIA', margin, currentY);
+      currentY += 7;
+      doc.setFont('helvetica', 'normal');
+      doc.text('CNPJ 37.423.637/0001-09', margin, currentY);
+      currentY += 20;
+
+      // Body Text
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(11);
+
+      const bodyText = `Pelo presente termo é concedida a autorização por aaaaaaaaaaaaaaaaaaaaaaa, bbbbbbbbb, inscrito (a) no CPF sob o Nº XXX.XXX.XXX-XX residente e domiciliado (a) yyyyyyyyyyyyy qq llllllllllllllllllll gggggggggg-cc – CEP: pppppppppppp para a empresa contratada CONEXAO ASSESSORIA, regularmente inscrita no CNPJ sob o nº 37.423.637/0001-09, com sede social na R. Benjamin Pereira, 246 –\u200B Jaçanã, São\u00A0Paulo\u00A0–\u00A0SP, 02274-000, a utilização de seu mmmmmmmmmmmmmmmm, bandeira , Nº final com finalidade de efetuar uma única vez a contratação da prestação de serviço no valor de R$XXXX,XX na presente data e nas seguintes condições:
+
+• mmmmmmmmmmmmmmmm
+
+Ressalto que as informações supracitadas foram apresentadas pelo titular aaaaaaaaaaaaaaaaaaaaaaa neste ato.
+Sendo expressão de verdade e sem qualquer coação, firmo o presente.
+
+São Paulo, ${formatDateByExtension(contractInfo.dataContrato)}`;
+
+      const finalBodyText = bodyText
+        .replace(/aaaaaaaaaaaaaaaaaaaaaaa/g, selectedLead.name)
+        .replace(/bbbbbbbbb/g, contractInfo.estadoCivil)
+        .replace(/XXX\.XXX\.XXX-XX/g, selectedLead.cpf)
+        .replace(/yyyyyyyyyyyyy/g, contractInfo.endereco)
+        .replace(/qq/g, contractInfo.numero)
+        .replace(/llllllllllllllllllll/g, contractInfo.bairro)
+        .replace(/gggggggggg/g, contractInfo.cidade)
+        .replace(/cc/g, contractInfo.estado)
+        .replace(/pppppppppppp/g, contractInfo.cep)
+        .replace(/mmmmmmmmmmmmmmmm/g, contractInfo.formaPagamento)
+        .replace(/R\$XXXX,XX/g, `R$ ${contractInfo.valor}`);
+
+      const fullAddress = `${contractInfo.endereco} ${contractInfo.numero} ${contractInfo.bairro} ${contractInfo.cidade}-${contractInfo.estado} – CEP: ${contractInfo.cep}`;
+      const boldKeywords = [
+        'CONEXAO ASSESSORIA',
+        'CONTRATANTE', 'CONTRATADA',
+        'empresa contratada',
+        selectedLead.name,
+        selectedLead.cpf,
+        contractInfo.estadoCivil,
+        fullAddress,
+        contractInfo.endereco,
+        contractInfo.numero,
+        contractInfo.bairro,
+        `${contractInfo.cidade}-${contractInfo.estado}`,
+        'CEP:',
+        contractInfo.cep,
+        '–',
+        contractInfo.formaPagamento
+      ].filter(Boolean);
+
+      const renderLine = (line: string, x: number, y: number, width: number) => {
+        const words = line.split(' ');
+        const isBold = new Array(words.length).fill(false);
+
+        for (let i = 0; i < words.length; i++) {
+          for (const kw of boldKeywords) {
+            const kwWords = kw.split(' ');
+            let match = true;
+            for (let j = 0; j < kwWords.length; j++) {
+              if (!words[i + j]) { match = false; break; }
+              const cleanWord = words[i + j].replace(/[.,:;()\-\u2013]/g, '');
+              if (cleanWord !== kwWords[j] && words[i + j] !== kwWords[j]) {
+                match = false;
+                break;
+              }
+            }
+            if (match) {
+              for (let j = 0; j < kwWords.length; j++) { isBold[i + j] = true; }
+            }
+          }
+        }
+
+        let currentX = x;
+        words.forEach((word, index) => {
+          doc.setFont('helvetica', isBold[index] ? 'bold' : 'normal');
+          const text = word + (index < words.length - 1 ? ' ' : '');
+          doc.text(text, currentX, y);
+          currentX += doc.getTextWidth(text);
+        });
+      };
+
+      const paragraphs = finalBodyText.split('\n');
+      paragraphs.forEach((paragraph) => {
+        if (paragraph.trim() === '') {
+          currentY += 5;
+          return;
+        }
+        const lines = doc.splitTextToSize(paragraph, contentWidth);
+        lines.forEach((line: string) => {
+          if (currentY + 10 > pageHeight - 20) {
+            doc.addPage();
+            currentY = margin;
+          }
+          renderLine(line, margin, currentY, contentWidth);
+          currentY += 7;
+        });
+        currentY += 3;
+      });
+
+      // Signature
+      currentY += 20;
+      doc.setFont('helvetica', 'bold');
+      doc.text('_____________________________________________________________________', margin, currentY);
+      currentY += 7;
+      doc.text(selectedLead.name, margin, currentY);
+
+      doc.save(`Autorizacao_${selectedLead.name.replace(/\s/g, '_')}.pdf`);
+    } catch (error) {
+      console.error("Error generating Authorization PDF:", error);
+    } finally {
+      setIsGeneratingAuthorization(false);
     }
   };
 
@@ -337,7 +709,7 @@ São Paulo, xx de xxxxxxxxxxx de 2026`;
             <FileText size={24} />
           </div>
           <div>
-            <h3 className="text-lg font-bold text-slate-800">Gerador de Contratos</h3>
+            <h3 className="text-lg font-bold text-slate-800">Gerador de PDF's</h3>
             <p className="text-sm text-slate-500">Gere contratos profissionais em PDF automaticamente</p>
           </div>
         </div>
@@ -345,17 +717,69 @@ São Paulo, xx de xxxxxxxxxxx de 2026`;
         <div className="space-y-6">
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-2">Selecione o Cliente</label>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-              <select 
-                onChange={(e) => setSelectedLead(leads.find(l => l.id === e.target.value) || null)}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 pl-10 pr-4 text-sm outline-none focus:ring-2 focus:ring-primary/20 appearance-none"
-              >
-                <option value="">Selecione um cliente da lista...</option>
-                {leads.filter(l => l.status === 'Fechado' || l.status === 'Em Negociação').map(lead => (
-                  <option key={lead.id} value={lead.id}>{lead.name} - {lead.cpf}</option>
-                ))}
-              </select>
+            <div className="relative" ref={dropdownRef}>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                <input 
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => {
+                    setSearchTerm(e.target.value);
+                    setIsDropdownOpen(true);
+                    if (selectedLead && e.target.value !== selectedLead.name) {
+                      setSelectedLead(null);
+                    }
+                  }}
+                  onFocus={() => setIsDropdownOpen(true)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 pl-10 pr-10 text-sm outline-none focus:ring-2 focus:ring-primary/20"
+                  placeholder="Digite o nome ou CPF do cliente..."
+                />
+                {searchTerm && (
+                  <button 
+                    onClick={() => {
+                      setSearchTerm('');
+                      setSelectedLead(null);
+                      setIsDropdownOpen(false);
+                    }}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  >
+                    <X size={16} />
+                  </button>
+                )}
+              </div>
+
+              {isDropdownOpen && (searchTerm.length > 0 || leads.length > 0) && (
+                <div className="absolute z-10 w-full mt-2 bg-white border border-slate-200 rounded-xl shadow-xl max-h-60 overflow-y-auto custom-scrollbar">
+                  {filteredLeads.length > 0 ? (
+                    filteredLeads.slice(0, 50).map(lead => (
+                      <button
+                        key={lead.id}
+                        onClick={() => handleSelectLead(lead)}
+                        className="w-full text-left px-4 py-3 hover:bg-slate-50 border-b border-slate-50 last:border-0 transition-colors"
+                      >
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <p className="text-sm font-bold text-slate-800">{lead.name}</p>
+                            <p className="text-xs text-slate-500">CPF: {lead.cpf}</p>
+                          </div>
+                          <span className={cn(
+                            "text-[10px] px-2 py-0.5 rounded-full font-bold uppercase",
+                            lead.status === 'Fechado' ? "bg-green-100 text-green-600" :
+                            lead.status === 'Em Negociação' ? "bg-blue-100 text-blue-600" :
+                            "bg-slate-100 text-slate-600"
+                          )}>
+                            {lead.status}
+                          </span>
+                        </div>
+                      </button>
+                    ))
+                  ) : (
+                    <div className="p-4 text-center text-slate-500 text-sm">
+                      Nenhum cliente encontrado.
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 
@@ -494,18 +918,34 @@ São Paulo, xx de xxxxxxxxxxx de 2026`;
                 </div>
               </div>
 
-              <div className="flex gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
                 <button 
                   onClick={generatePDF}
                   disabled={isGenerating}
-                  className="flex-1 flex items-center justify-center gap-2 py-4 bg-primary text-white rounded-xl font-bold text-sm shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all disabled:opacity-50"
+                  className="flex items-center justify-center gap-2 py-4 bg-primary text-white rounded-xl font-bold text-sm shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all disabled:opacity-50"
                 >
-                  <Download size={20} />
-                  {isGenerating ? 'Gerando Documento...' : 'Gerar Contrato PDF'}
+                  <FileText size={20} />
+                  {isGenerating ? 'Gerando...' : 'Contrato'}
                 </button>
-                <button className="flex items-center justify-center gap-2 px-8 py-4 bg-white border border-slate-200 text-slate-600 rounded-xl font-bold text-sm hover:bg-slate-50 transition-all">
-                  <Printer size={20} />
-                  Imprimir
+                <button 
+                  onClick={generateReceiptPDF}
+                  disabled={isGeneratingReceipt}
+                  className="flex items-center justify-center gap-2 py-4 bg-primary text-white rounded-xl font-bold text-sm shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all disabled:opacity-50"
+                >
+                  <CreditCard size={20} />
+                  {isGeneratingReceipt ? 'Gerando...' : 'Recibo'}
+                </button>
+                <button 
+                  onClick={generateAuthorizationPDF}
+                  disabled={isGeneratingAuthorization}
+                  className="flex items-center justify-center gap-2 py-4 bg-primary text-white rounded-xl font-bold text-sm shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all disabled:opacity-50"
+                >
+                  <CheckCircle2 size={20} />
+                  {isGeneratingAuthorization ? 'Gerando...' : 'Autorização'}
+                </button>
+                <button className="flex items-center justify-center gap-2 py-4 bg-white border border-slate-200 text-slate-600 rounded-xl font-bold text-sm hover:bg-slate-50 transition-all">
+                  <FileText size={20} />
+                  Notificação de Acordo
                 </button>
               </div>
             </div>

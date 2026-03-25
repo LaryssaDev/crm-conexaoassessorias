@@ -22,6 +22,7 @@ export interface Lead {
   name: string;
   cpf: string;
   phone: string;
+  phone2?: string;
   email: string;
   origin: string;
   contractType: string;
@@ -91,4 +92,15 @@ export interface Team {
   name: string;
   supervisorId: string;
   department: Department;
+}
+
+export interface TimeRecord {
+  id: string;
+  userId: string;
+  date: string;
+  checkIn?: string;
+  lunchStart?: string;
+  lunchEnd?: string;
+  checkOut?: string;
+  createdAt: string;
 }

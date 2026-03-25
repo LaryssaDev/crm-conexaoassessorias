@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
-import { User, Lead, FixedCost, Transaction, HistoryRecord, AgendaItem } from '../types';
+import { User, Lead, FixedCost, Transaction, HistoryRecord, AgendaItem, TimeRecord } from '../types';
 import { INITIAL_USERS, INITIAL_LEADS, INITIAL_COSTS, INITIAL_TRANSACTIONS, INITIAL_HISTORY } from '../constants';
 import { supabase } from '../lib/supabase';
 import { useNotifications } from './NotificationContext';
@@ -33,6 +33,9 @@ interface DataContextType {
   toggleCostStatus: (id: string) => Promise<void>;
   addAgendaItem: (item: AgendaItem) => Promise<void>;
   deleteAgendaItem: (id: string) => Promise<void>;
+  timeRecords: TimeRecord[];
+  addTimeRecord: (record: TimeRecord) => Promise<void>;
+  updateTimeRecord: (record: TimeRecord) => Promise<void>;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -46,6 +49,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [transactions, setTransactions] = useState<Transaction[]>(INITIAL_TRANSACTIONS);
   const [history, setHistory] = useState<HistoryRecord[]>(INITIAL_HISTORY);
   const [agenda, setAgenda] = useState<AgendaItem[]>([]);
+  const [timeRecords, setTimeRecords] = useState<TimeRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [lastResetDate, setLastResetDate] = useState<string | null>(localStorage.getItem('last_cost_reset'));
   const [comercialTarget, setComercialTargetState] = useState<number>(() => {
@@ -89,18 +93,20 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
           { data: costsData, error: costsError },
           { data: transactionsData, error: transactionsError },
           { data: historyData, error: historyError },
-          { data: agendaData, error: agendaError }
+          { data: agendaData, error: agendaError },
+          { data: timeRecordsData, error: timeRecordsError }
         ] = await Promise.all([
           supabase.from('users').select('*'),
           supabase.from('leads').select('*').order('created_at', { ascending: false }),
           supabase.from('fixed_costs').select('*').order('due_date', { ascending: true }),
           supabase.from('transactions').select('*').order('date', { ascending: false }),
           supabase.from('history_records').select('*').order('created_at', { ascending: false }),
-          supabase.from('agenda').select('*').order('date', { ascending: true })
+          supabase.from('agenda').select('*').order('date', { ascending: true }),
+          supabase.from('time_records').select('*').order('date', { ascending: false })
         ]);
 
         // Handle potential auth errors (401 Unauthorized)
-        const errors = [usersError, leadsError, costsError, transactionsError, historyError, agendaError].filter(Boolean);
+        const errors = [usersError, leadsError, costsError, transactionsError, historyError, agendaError, timeRecordsError].filter(Boolean);
         if (errors.some(err => err?.message.includes('JWT') || err?.message.includes('Unauthorized') || err?.code === 'PGRST301')) {
           console.error('Auth error detected during data fetch. Session might be invalid.');
           // AuthContext will handle the actual logout via onAuthStateChange if the session is truly gone,
@@ -163,6 +169,17 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
             createdAt: a.created_at
           })));
         }
+        if (timeRecordsData) {
+          setTimeRecords(timeRecordsData.map((tr: any) => ({
+            ...tr,
+            userId: tr.user_id,
+            checkIn: tr.check_in,
+            lunchStart: tr.lunch_start,
+            lunchEnd: tr.lunch_end,
+            checkOut: tr.check_out,
+            createdAt: tr.created_at
+          })));
+        }
       } catch (error) {
         console.error('Error fetching data from Supabase:', error);
       } finally {
@@ -199,12 +216,15 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       fetchData();
     }).on('postgres_changes' as any, { event: 'UPDATE', table: 'history_records' }, fetchData).on('postgres_changes' as any, { event: 'DELETE', table: 'history_records' }, fetchData).subscribe();
 
+    const timeRecordsSub = supabase.channel('time_records_changes').on('postgres_changes' as any, { event: '*', table: 'time_records' }, fetchData).subscribe();
+
     return () => {
       supabase.removeChannel(usersSub);
       supabase.removeChannel(leadsSub);
       supabase.removeChannel(costsSub);
       supabase.removeChannel(transactionsSub);
       supabase.removeChannel(historySub);
+      supabase.removeChannel(timeRecordsSub);
     };
   }, [user, addNotification]);
 
@@ -491,6 +511,37 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const addTimeRecord = async (record: TimeRecord) => {
+    const dbRecord = {
+      user_id: record.userId,
+      date: record.date,
+      check_in: record.checkIn,
+      lunch_start: record.lunchStart,
+      lunch_end: record.lunchEnd,
+      check_out: record.checkOut,
+      created_at: record.createdAt
+    };
+    const { error } = await supabase.from('time_records').insert([dbRecord]);
+    if (error) {
+      console.error('Error adding time record:', error);
+      throw error;
+    }
+  };
+
+  const updateTimeRecord = async (record: TimeRecord) => {
+    const dbRecord = {
+      check_in: record.checkIn,
+      lunch_start: record.lunchStart,
+      lunch_end: record.lunchEnd,
+      check_out: record.checkOut
+    };
+    const { error } = await supabase.from('time_records').update(dbRecord).eq('id', record.id);
+    if (error) {
+      console.error('Error updating time record:', error);
+      throw error;
+    }
+  };
+
   const toggleCostStatus = useCallback(async (id: string) => {
     const costToToggle = costs.find(c => c.id === id);
     if (!costToToggle) return;
@@ -537,7 +588,10 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       toggleCostStatus,
       agenda,
       addAgendaItem,
-      deleteAgendaItem
+      deleteAgendaItem,
+      timeRecords,
+      addTimeRecord,
+      updateTimeRecord
     }}>
       {children}
     </DataContext.Provider>

@@ -96,7 +96,7 @@ export const Meta: React.FC = () => {
                     <span className="text-sm text-slate-500">Meta Mensal</span>
                     <div className="flex items-center gap-2">
                       <span className="font-bold text-slate-800">R$ {dept.target.toLocaleString()}</span>
-                      {user?.role === 'Administrador' && (
+                      { (user?.role === 'Administrador' || user?.role === 'Financeiro') && (
                         <button 
                           onClick={() => {
                             setEditingDept({ id: dept.id, name: dept.name, current: dept.target });

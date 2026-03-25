@@ -33,6 +33,7 @@ export const Leads: React.FC = () => {
     name: '',
     cpf: '',
     phone: '',
+    phone2: '',
     email: '',
     origin: 'Instagram',
     contractType: 'Veiculo',
@@ -71,7 +72,7 @@ export const Leads: React.FC = () => {
       'lead'
     );
     setShowAddModal(false);
-    setNewLead({ name: '', cpf: '', phone: '', email: '', origin: 'Instagram', contractType: 'Veiculo', installmentValue: '' });
+    setNewLead({ name: '', cpf: '', phone: '', phone2: '', email: '', origin: 'Instagram', contractType: 'Veiculo', installmentValue: '' });
   };
 
   const handleEditLead = (e: React.FormEvent) => {
@@ -91,13 +92,14 @@ export const Leads: React.FC = () => {
   };
 
   const exportLeads = () => {
-    const headers = ['Nome', 'CPF', 'Telefone', 'E-mail', 'Origem', 'Tipo de Contrato', 'Valor da Parcela', 'Status', 'Data de Criação'];
+    const headers = ['Nome', 'CPF', 'Telefone', 'Telefone 2', 'E-mail', 'Origem', 'Tipo de Contrato', 'Valor da Parcela', 'Status', 'Data de Criação'];
     const csvContent = [
       headers.join(';'),
       ...leads.map(l => [
         `"${(l.name || '').replace(/"/g, '""')}"`,
         `"${(l.cpf || '').replace(/"/g, '""')}"`,
         `"${(l.phone || '').replace(/"/g, '""')}"`,
+        `"${(l.phone2 || '').replace(/"/g, '""')}"`,
         `"${(l.email || '').replace(/"/g, '""')}"`,
         `"${(l.origin || '').replace(/"/g, '""')}"`,
         `"${(l.contractType || '').replace(/"/g, '""')}"`,
@@ -172,13 +174,14 @@ export const Leads: React.FC = () => {
           name: values[0] || '',
           cpf: values[1] || '',
           phone: values[2] || '',
-          email: values[3] || '',
-          origin: values[4] || 'Instagram',
-          contractType: values[5] || 'Veiculo',
-          installmentValue: Number((values[6] || '0').replace(',', '.')),
-          status: (values[7] || 'Novo') as any,
+          phone2: values[3] || '',
+          email: values[4] || '',
+          origin: values[5] || 'Instagram',
+          contractType: values[6] || 'Veiculo',
+          installmentValue: Number((values[7] || '0').replace(',', '.')),
+          status: (values[8] || 'Novo') as any,
           assignedTo: user?.id,
-          createdAt: values[8] || new Date().toISOString()
+          createdAt: values[9] || new Date().toISOString()
         };
         
         importedLeads.push(lead);
@@ -286,6 +289,7 @@ export const Leads: React.FC = () => {
                       <div className="flex items-center gap-2 text-xs text-slate-600">
                         <Phone size={12} className="text-slate-400" />
                         {lead.phone || 'N/A'}
+                        {lead.phone2 && ` / ${lead.phone2}`}
                       </div>
                     </div>
                   </td>
@@ -377,12 +381,21 @@ export const Leads: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Telefone</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Telefone 1</label>
                   <input 
                     type="text"
                     required
                     value={editingLead.phone}
                     onChange={(e) => setEditingLead({...editingLead, phone: e.target.value})}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-4 text-sm outline-none focus:ring-2 focus:ring-primary/20"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Telefone 2 (Opcional)</label>
+                  <input 
+                    type="text"
+                    value={editingLead.phone2 || ''}
+                    onChange={(e) => setEditingLead({...editingLead, phone2: e.target.value})}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-4 text-sm outline-none focus:ring-2 focus:ring-primary/20"
                   />
                 </div>
@@ -533,12 +546,22 @@ export const Leads: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Telefone</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Telefone 1</label>
                   <input 
                     type="text"
                     required
                     value={newLead.phone}
                     onChange={(e) => setNewLead({...newLead, phone: e.target.value})}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-4 text-sm outline-none focus:ring-2 focus:ring-primary/20"
+                    placeholder="(00) 00000-0000"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Telefone 2 (Opcional)</label>
+                  <input 
+                    type="text"
+                    value={newLead.phone2}
+                    onChange={(e) => setNewLead({...newLead, phone2: e.target.value})}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-4 text-sm outline-none focus:ring-2 focus:ring-primary/20"
                     placeholder="(00) 00000-0000"
                   />
