@@ -5,6 +5,7 @@ import { Lead } from '../types';
 import { MoreVertical, Plus, GripVertical, Search, Filter } from 'lucide-react';
 
 export const Funil: React.FC = () => {
+  const { user } = useAuth();
   const { leads, updateLead } = useData();
   const [searchTerm, setSearchTerm] = useState('');
   
@@ -15,10 +16,25 @@ export const Funil: React.FC = () => {
     { id: 'Perdido', title: 'Perdido', color: 'bg-red-500' },
   ];
 
-  const filteredLeads = (leads || []).filter(l => 
-    (l.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (l.origin || '').toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredLeads = (leads || []).filter(l => {
+    // Role-based filtering
+    if (user?.role === 'Consultor') {
+      const isAssigned = 
+        l.consultorComercialId === user.id || 
+        l.consultorJuridicoId === user.id || 
+        l.assignedTo === user.id;
+      if (!isAssigned) return false;
+    } else if (user?.role === 'Supervisor') {
+      const isSupervisor = 
+        l.supervisorComercialId === user.id || 
+        l.supervisorJuridicoId === user.id || 
+        l.supervisorId === user.id;
+      if (!isSupervisor) return false;
+    }
+
+    return (l.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+           (l.origin || '').toLowerCase().includes(searchTerm.toLowerCase());
+  });
 
   const getLeadsByStatus = (status: string) => filteredLeads.filter(l => l.status === status);
 

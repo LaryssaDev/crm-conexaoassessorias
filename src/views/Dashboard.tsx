@@ -21,29 +21,75 @@ import {
 
 export const Dashboard: React.FC = () => {
   const { user } = useAuth();
-  const { leads, transactions, history, comercialTarget, juridicoTarget } = useData();
+  const { leads, transactions, history, comercialTarget, juridicoTarget, users } = useData();
 
-  const totalFaturamento = (transactions || [])
+  const filteredLeads = (leads || []).filter(lead => {
+    // Role-based filtering
+    if (user?.role === 'Consultor') {
+      const isAssigned = 
+        lead.consultorComercialId === user.id || 
+        lead.consultorJuridicoId === user.id || 
+        lead.assignedTo === user.id;
+      if (!isAssigned) return false;
+    } else if (user?.role === 'Supervisor') {
+      const isSupervisor = 
+        lead.supervisorComercialId === user.id || 
+        lead.supervisorJuridicoId === user.id || 
+        lead.supervisorId === user.id;
+      if (!isSupervisor) return false;
+    }
+    return true;
+  });
+
+  const leadIds = new Set(filteredLeads.map(l => l.id));
+
+  const filteredHistory = (history || []).filter(h => leadIds.has(h.leadId));
+  
+  // Filter transactions by lead names in description (since they aren't linked by ID)
+  const filteredTransactions = (transactions || []).filter(t => {
+    if (user?.role === 'Administrador' || user?.role === 'Financeiro') return true;
+    return filteredLeads.some(l => t.description.includes(l.name));
+  });
+
+  const totalFaturamento = filteredTransactions
     .filter(t => t.type === 'Entrada')
     .reduce((acc, t) => acc + (Number(t.value) || 0), 0);
 
-  const leadsEmNegociacao = (leads || []).filter(l => l.status === 'Em Negociação').length;
-  const leadsFechados = (leads || []).filter(l => l.status === 'Fechado').length;
-  const leadsPerdidos = (leads || []).filter(l => l.status === 'Perdido').length;
+  const leadsEmNegociacao = filteredLeads.filter(l => l.status === 'Em Negociação').length;
+  const leadsFechados = filteredLeads.filter(l => l.status === 'Fechado').length;
+  const leadsPerdidos = filteredLeads.filter(l => l.status === 'Perdido').length;
   
-  const totalLeads = (leads || []).length;
+  const totalLeads = filteredLeads.length;
   const conversao = totalLeads > 0 ? Math.round((leadsFechados / totalLeads) * 100) : 0;
 
-  const comercialCurrent = history
+  const comercialCurrent = filteredHistory
     .filter(h => h.department === 'Comercial' && h.type === 'Pagamento')
     .reduce((acc, curr) => acc + (Number(curr.value) || 0), 0);
 
-  const juridicoCurrent = history
+  const juridicoCurrent = filteredHistory
     .filter(h => h.department === 'Jurídico' && h.type === 'Pagamento')
     .reduce((acc, curr) => acc + (Number(curr.value) || 0), 0);
 
-  const totalTarget = comercialTarget + juridicoTarget;
-  const totalCurrent = comercialCurrent + juridicoCurrent;
+  // Calculate targets
+  let displayComercialTarget = comercialTarget;
+  let displayJuridicoTarget = juridicoTarget;
+
+  if (user?.role === 'Consultor') {
+    const comercialConsultants = users.filter(u => u.department === 'Comercial' && u.role === 'Consultor').length;
+    const juridicoConsultants = users.filter(u => u.department === 'Jurídico' && u.role === 'Consultor').length;
+    
+    displayComercialTarget = comercialConsultants > 0 ? comercialTarget / comercialConsultants : 0;
+    displayJuridicoTarget = juridicoConsultants > 0 ? juridicoTarget / juridicoConsultants : 0;
+  }
+
+  const totalTarget = (user?.role === 'Consultor' || user?.role === 'Supervisor')
+    ? (user.department === 'Comercial' ? displayComercialTarget : displayJuridicoTarget)
+    : (comercialTarget + juridicoTarget);
+
+  const totalCurrent = (user?.role === 'Consultor' || user?.role === 'Supervisor')
+    ? (user.department === 'Comercial' ? comercialCurrent : juridicoCurrent)
+    : (comercialCurrent + juridicoCurrent);
+
   const totalGoalPercent = totalTarget > 0 ? Math.round((totalCurrent / totalTarget) * 100) : 0;
 
   const stats = [
@@ -55,7 +101,7 @@ export const Dashboard: React.FC = () => {
     { title: 'Meta Mensal', value: `${totalGoalPercent}%`, icon: Target, color: 'text-purple-600', bg: 'bg-purple-50' },
   ];
 
-  // Prepare chart data from transactions
+  // Prepare chart data from filtered transactions
   const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
   const currentMonth = new Date().getMonth();
   const last6Months = [];
@@ -63,7 +109,7 @@ export const Dashboard: React.FC = () => {
     const monthIdx = (currentMonth - i + 12) % 12;
     last6Months.push({
       name: months[monthIdx],
-      faturamento: (transactions || [])
+      faturamento: filteredTransactions
         .filter(t => {
           if (!t.date) return false;
           const d = new Date(t.date);
@@ -92,7 +138,9 @@ export const Dashboard: React.FC = () => {
           <div className="flex items-center justify-between mb-8">
             <div>
               <h3 className="text-lg font-bold text-slate-800">Evolução do Faturamento</h3>
-              <p className="text-sm text-slate-500">Desempenho nos últimos 6 meses</p>
+              <p className="text-sm text-slate-500">
+                {user?.role === 'Consultor' ? 'Seu desempenho individual' : 'Desempenho nos últimos 6 meses'}
+              </p>
             </div>
             <select className="bg-slate-50 border-none rounded-lg px-3 py-2 text-sm outline-none">
               <option>Últimos 6 meses</option>
@@ -141,43 +189,55 @@ export const Dashboard: React.FC = () => {
         </div>
 
         <div className="space-y-6">
-          <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-10 h-10 bg-primary/10 text-primary rounded-xl flex items-center justify-center">
-                <Target size={20} />
+          {((user?.role !== 'Consultor' && user?.role !== 'Supervisor') || user?.department === 'Comercial') && (
+            <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-10 h-10 bg-primary/10 text-primary rounded-xl flex items-center justify-center">
+                  <Target size={20} />
+                </div>
+                <h3 className="text-lg font-bold text-slate-800">
+                  {user?.role === 'Consultor' ? 'Minha Meta Comercial' : 'Meta Comercial'}
+                </h3>
               </div>
-              <h3 className="text-lg font-bold text-slate-800">Meta Comercial</h3>
+              <div className="space-y-4">
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-500">Progresso</span>
+                  <span className="font-bold text-slate-800">R$ {comercialCurrent.toLocaleString()} / R$ {displayComercialTarget.toLocaleString()}</span>
+                </div>
+                <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                  <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${Math.min(displayComercialTarget > 0 ? Math.round((comercialCurrent / displayComercialTarget) * 100) : 0, 100)}%` }}></div>
+                </div>
+                <p className="text-xs text-slate-400 text-center font-bold uppercase tracking-wider">
+                  {displayComercialTarget > 0 ? Math.round((comercialCurrent / displayComercialTarget) * 100) : 0}% Atingido
+                </p>
+              </div>
             </div>
-            <div className="space-y-4">
-              <div className="flex justify-between text-sm">
-                <span className="text-slate-500">Progresso</span>
-                <span className="font-bold text-slate-800">R$ {comercialCurrent.toLocaleString()} / R$ {comercialTarget.toLocaleString()}</span>
-              </div>
-              <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${Math.min(Math.round((comercialCurrent / comercialTarget) * 100), 100)}%` }}></div>
-              </div>
-              <p className="text-xs text-slate-400 text-center font-bold uppercase tracking-wider">{Math.round((comercialCurrent / comercialTarget) * 100)}% Atingido</p>
-            </div>
-          </div>
+          )}
 
-          <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-10 h-10 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center">
-                <Target size={20} />
+          {((user?.role !== 'Consultor' && user?.role !== 'Supervisor') || user?.department === 'Jurídico') && (
+            <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-10 h-10 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center">
+                  <Target size={20} />
+                </div>
+                <h3 className="text-lg font-bold text-slate-800">
+                  {user?.role === 'Consultor' ? 'Minha Meta Jurídica' : 'Meta Jurídico'}
+                </h3>
               </div>
-              <h3 className="text-lg font-bold text-slate-800">Meta Jurídico</h3>
+              <div className="space-y-4">
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-500">Progresso</span>
+                  <span className="font-bold text-slate-800">R$ {juridicoCurrent.toLocaleString()} / R$ {displayJuridicoTarget.toLocaleString()}</span>
+                </div>
+                <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                  <div className="h-full bg-emerald-500 rounded-full transition-all" style={{ width: `${Math.min(displayJuridicoTarget > 0 ? Math.round((juridicoCurrent / displayJuridicoTarget) * 100) : 0, 100)}%` }}></div>
+                </div>
+                <p className="text-xs text-slate-400 text-center font-bold uppercase tracking-wider">
+                  {displayJuridicoTarget > 0 ? Math.round((juridicoCurrent / displayJuridicoTarget) * 100) : 0}% Atingido
+                </p>
+              </div>
             </div>
-            <div className="space-y-4">
-              <div className="flex justify-between text-sm">
-                <span className="text-slate-500">Progresso</span>
-                <span className="font-bold text-slate-800">R$ {juridicoCurrent.toLocaleString()} / R$ {juridicoTarget.toLocaleString()}</span>
-              </div>
-              <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                <div className="h-full bg-emerald-500 rounded-full transition-all" style={{ width: `${Math.min(Math.round((juridicoCurrent / juridicoTarget) * 100), 100)}%` }}></div>
-              </div>
-              <p className="text-xs text-slate-400 text-center font-bold uppercase tracking-wider">{Math.round((juridicoCurrent / juridicoTarget) * 100)}% Atingido</p>
-            </div>
-          </div>
+          )}
         </div>
       </div>
     </div>

@@ -6,13 +6,20 @@ import { Trophy, Medal, Users } from 'lucide-react';
 export const Ranking: React.FC = () => {
   const { user } = useAuth();
   const { users, leads, history } = useData();
-  const [selectedDept, setSelectedDept] = useState<'Comercial' | 'Jurídico'>('Comercial');
+  const [selectedDept, setSelectedDept] = useState<'Comercial' | 'Jurídico'>(
+    (user?.role === 'Consultor' || user?.role === 'Supervisor') ? user.department : 'Comercial'
+  );
 
   const consultants = users.filter(u => u.department === selectedDept && u.role === 'Consultor');
   
   // Add Aline Ferreira if she's the admin and might have sales
   const admins = users.filter(u => u.role === 'Administrador' || u.role === 'Financeiro');
-  const allPotentialSellers = [...consultants, ...admins];
+  let allPotentialSellers = [...consultants, ...admins];
+
+  // If user is a Consultant, show only themselves
+  if (user?.role === 'Consultor') {
+    allPotentialSellers = allPotentialSellers.filter(u => u.id === user.id);
+  }
 
   const rankingData = allPotentialSellers.map(consultant => {
     const consultantHistory = history.filter(h => h.userId === consultant.id && h.type === 'Pagamento' && h.department === selectedDept);
@@ -59,39 +66,43 @@ export const Ranking: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-        <button 
-          onClick={() => setSelectedDept('Comercial')}
-          className={`p-6 rounded-2xl border transition-all text-left flex items-center gap-4 ${
-            selectedDept === 'Comercial' 
-              ? 'bg-primary border-primary text-white shadow-lg shadow-primary/20' 
-              : 'bg-white border-slate-100 text-slate-800 hover:border-primary/30'
-          }`}
-        >
-          <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${selectedDept === 'Comercial' ? 'bg-white/20' : 'bg-primary/10 text-primary'}`}>
-            <Users size={24} />
-          </div>
-          <div>
-            <h4 className="font-bold">Meta Comercial</h4>
-            <p className={`text-xs ${selectedDept === 'Comercial' ? 'text-white/70' : 'text-slate-500'}`}>Ver ranking do comercial</p>
-          </div>
-        </button>
+        {((user?.role !== 'Consultor' && user?.role !== 'Supervisor') || user?.department === 'Comercial') && (
+          <button 
+            onClick={() => setSelectedDept('Comercial')}
+            className={`p-6 rounded-2xl border transition-all text-left flex items-center gap-4 ${
+              selectedDept === 'Comercial' 
+                ? 'bg-primary border-primary text-white shadow-lg shadow-primary/20' 
+                : 'bg-white border-slate-100 text-slate-800 hover:border-primary/30'
+            }`}
+          >
+            <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${selectedDept === 'Comercial' ? 'bg-white/20' : 'bg-primary/10 text-primary'}`}>
+              <Users size={24} />
+            </div>
+            <div>
+              <h4 className="font-bold">Meta Comercial</h4>
+              <p className={`text-xs ${selectedDept === 'Comercial' ? 'text-white/70' : 'text-slate-500'}`}>Ver ranking do comercial</p>
+            </div>
+          </button>
+        )}
 
-        <button 
-          onClick={() => setSelectedDept('Jurídico')}
-          className={`p-6 rounded-2xl border transition-all text-left flex items-center gap-4 ${
-            selectedDept === 'Jurídico' 
-              ? 'bg-emerald-600 border-emerald-600 text-white shadow-lg shadow-emerald-600/20' 
-              : 'bg-white border-slate-100 text-slate-800 hover:border-emerald-600/30'
-          }`}
-        >
-          <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${selectedDept === 'Jurídico' ? 'bg-white/20' : 'bg-emerald-50 text-emerald-600'}`}>
-            <Users size={24} />
-          </div>
-          <div>
-            <h4 className="font-bold">Meta Jurídico</h4>
-            <p className={`text-xs ${selectedDept === 'Jurídico' ? 'text-white/70' : 'text-slate-500'}`}>Ver ranking do jurídico</p>
-          </div>
-        </button>
+        {((user?.role !== 'Consultor' && user?.role !== 'Supervisor') || user?.department === 'Jurídico') && (
+          <button 
+            onClick={() => setSelectedDept('Jurídico')}
+            className={`p-6 rounded-2xl border transition-all text-left flex items-center gap-4 ${
+              selectedDept === 'Jurídico' 
+                ? 'bg-emerald-600 border-emerald-600 text-white shadow-lg shadow-emerald-600/20' 
+                : 'bg-white border-slate-100 text-slate-800 hover:border-emerald-600/30'
+            }`}
+          >
+            <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${selectedDept === 'Jurídico' ? 'bg-white/20' : 'bg-emerald-50 text-emerald-600'}`}>
+              <Users size={24} />
+            </div>
+            <div>
+              <h4 className="font-bold">Meta Jurídico</h4>
+              <p className={`text-xs ${selectedDept === 'Jurídico' ? 'text-white/70' : 'text-slate-500'}`}>Ver ranking do jurídico</p>
+            </div>
+          </button>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">

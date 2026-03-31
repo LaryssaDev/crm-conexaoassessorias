@@ -23,10 +23,15 @@ export const Meta: React.FC = () => {
     .filter(h => h.department === 'Jurídico' && h.type === 'Pagamento')
     .reduce((acc, curr) => acc + (Number(curr.value) || 0), 0);
 
+  // Individual performance for the logged-in user
+  const userIndividualCurrent = history
+    .filter(h => h.userId === user?.id && h.type === 'Pagamento')
+    .reduce((acc, curr) => acc + (Number(curr.value) || 0), 0);
+
   const comercialPerConsultant = comercialConsultants.length > 0 ? comercialTarget / comercialConsultants.length : 0;
   const juridicoPerConsultant = juridicoConsultants.length > 0 ? juridicoTarget / juridicoConsultants.length : 0;
 
-  const departments = [
+  let departments = [
     { 
       id: 'Comercial', 
       name: 'Equipe Comercial', 
@@ -48,6 +53,11 @@ export const Meta: React.FC = () => {
       color: 'emerald'
     }
   ];
+
+  // Filter departments for Consultants and Supervisors
+  if (user?.role === 'Consultor' || user?.role === 'Supervisor') {
+    departments = departments.filter(d => d.id === (user.department === 'Comercial' ? 'Comercial' : 'Juridico'));
+  }
 
   const handleSaveTarget = () => {
     const parsedValue = parseCurrency(tempTarget);
@@ -71,7 +81,11 @@ export const Meta: React.FC = () => {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         {departments.map(dept => {
-          const percent = dept.target > 0 ? Math.round((dept.current / dept.target) * 100) : 0;
+          const isConsultant = user?.role === 'Consultor';
+          const currentVal = isConsultant ? userIndividualCurrent : dept.current;
+          const targetVal = isConsultant ? dept.perConsultant : dept.target;
+          const percent = targetVal > 0 ? Math.round((currentVal / targetVal) * 100) : 0;
+
           return (
             <div key={dept.id} className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100">
               <div className="flex items-center justify-between mb-8">
@@ -80,8 +94,8 @@ export const Meta: React.FC = () => {
                     <Users size={24} />
                   </div>
                   <div>
-                    <h4 className="font-bold text-slate-800">{dept.name}</h4>
-                    <p className="text-xs text-slate-500">{dept.consultants.length} Consultores ativos</p>
+                    <h4 className="font-bold text-slate-800">{isConsultant ? 'Minha Meta Individual' : dept.name}</h4>
+                    <p className="text-xs text-slate-500">{isConsultant ? 'Sua performance individual' : `${dept.consultants.length} Consultores ativos`}</p>
                   </div>
                 </div>
                 <div className="text-right">
@@ -93,9 +107,9 @@ export const Meta: React.FC = () => {
               <div className="space-y-6">
                 <div>
                   <div className="flex justify-between items-center mb-4">
-                    <span className="text-sm text-slate-500">Meta Mensal</span>
+                    <span className="text-sm text-slate-500">{isConsultant ? 'Minha Meta' : 'Meta Mensal'}</span>
                     <div className="flex items-center gap-2">
-                      <span className="font-bold text-slate-800">R$ {dept.target.toLocaleString()}</span>
+                      <span className="font-bold text-slate-800">R$ {targetVal.toLocaleString()}</span>
                       { (user?.role === 'Administrador' || user?.role === 'Financeiro') && (
                         <button 
                           onClick={() => {
@@ -120,12 +134,16 @@ export const Meta: React.FC = () => {
                 <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
                   <div className="flex justify-between items-center">
                     <div>
-                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Meta por Consultor</p>
-                      <p className="text-lg font-bold text-slate-800">R$ {dept.perConsultant.toLocaleString()}</p>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                        {isConsultant ? 'Meta da Equipe' : 'Meta por Consultor'}
+                      </p>
+                      <p className="text-lg font-bold text-slate-800">R$ {(isConsultant ? dept.target : dept.perConsultant).toLocaleString()}</p>
                     </div>
                     <div className="text-right">
-                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Total Atual</p>
-                      <p className="text-lg font-bold text-slate-800">R$ {dept.current.toLocaleString()}</p>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                        {isConsultant ? 'Meu Faturamento' : 'Total Atual'}
+                      </p>
+                      <p className="text-lg font-bold text-slate-800">R$ {currentVal.toLocaleString()}</p>
                     </div>
                   </div>
                 </div>

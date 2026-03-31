@@ -113,6 +113,11 @@ export const Agenda: React.FC = () => {
           {agenda.length > 0 ? (
             agenda
               .filter(e => {
+                // Role-based filtering for agenda
+                if (user?.role !== 'Administrador' && e.userId !== user?.id) {
+                  return false;
+                }
+
                 if (view === 'Dia') {
                   const today = new Date().toISOString().split('T')[0];
                   return e.date === today;

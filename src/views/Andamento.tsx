@@ -25,12 +25,27 @@ export const Andamento: React.FC = () => {
   const [showModal, setShowModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
 
-  // Filter leads based on search term
-  const filteredLeads = (leads || []).filter(lead => 
-    (lead.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (lead.cpf || '').includes(searchTerm) ||
-    (lead.phone || '').includes(searchTerm)
-  );
+  // Filter leads based on search term and user role
+  const filteredLeads = (leads || []).filter(lead => {
+    // Role-based filtering
+    if (user?.role === 'Consultor') {
+      const isAssigned = 
+        lead.consultorComercialId === user.id || 
+        lead.consultorJuridicoId === user.id || 
+        lead.assignedTo === user.id;
+      if (!isAssigned) return false;
+    } else if (user?.role === 'Supervisor') {
+      const isSupervisor = 
+        lead.supervisorComercialId === user.id || 
+        lead.supervisorJuridicoId === user.id || 
+        lead.supervisorId === user.id;
+      if (!isSupervisor) return false;
+    }
+
+    return (lead.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+           (lead.cpf || '').includes(searchTerm) ||
+           (lead.phone || '').includes(searchTerm);
+  });
 
   // Update local history when dataHistory or selectedLead changes
   React.useEffect(() => {
