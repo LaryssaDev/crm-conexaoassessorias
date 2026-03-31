@@ -17,6 +17,7 @@ interface DataContextType {
   juridicoTarget: number;
   setComercialTarget: (target: number) => void;
   setJuridicoTarget: (target: number) => void;
+  deleteTarget: (key: 'comercial_target' | 'juridico_target') => Promise<void>;
   addUser: (user: User, password?: string) => Promise<void>;
   updateUser: (user: User) => Promise<void>;
   deleteUser: (id: string) => Promise<void>;
@@ -52,23 +53,84 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [timeRecords, setTimeRecords] = useState<TimeRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [lastResetDate, setLastResetDate] = useState<string | null>(localStorage.getItem('last_cost_reset'));
-  const [comercialTarget, setComercialTargetState] = useState<number>(() => {
-    const saved = localStorage.getItem('comercial_target');
-    return saved ? Number(saved) : 100000;
-  });
-  const [juridicoTarget, setJuridicoTargetState] = useState<number>(() => {
-    const saved = localStorage.getItem('juridico_target');
-    return saved ? Number(saved) : 60000;
-  });
+  const [comercialTarget, setComercialTargetState] = useState<number>(0);
+  const [juridicoTarget, setJuridicoTargetState] = useState<number>(0);
 
-  const setComercialTarget = (target: number) => {
+  const setComercialTarget = async (target: number) => {
+    console.log('--- Iniciando Sincronização de Meta Comercial ---');
+    console.log('Valor:', target);
     setComercialTargetState(target);
-    localStorage.setItem('comercial_target', target.toString());
+    
+    try {
+      const response = await supabase
+        .from('settings')
+        .upsert([
+          { key: 'comercial_target', value: target.toString() }
+        ], { onConflict: 'key' });
+      
+      console.log('Resposta do Supabase:', response);
+      
+      if (response.error) {
+        console.error('Erro detalhado do Supabase:', response.error);
+        throw response.error;
+      }
+      
+      console.log('✅ Meta Comercial salva no banco de dados!');
+    } catch (error) {
+      console.error('❌ Falha ao salvar no banco. Usando LocalStorage como backup.', error);
+      localStorage.setItem('comercial_target', target.toString());
+    }
   };
 
-  const setJuridicoTarget = (target: number) => {
+  const setJuridicoTarget = async (target: number) => {
+    console.log('--- Iniciando Sincronização de Meta Jurídica ---');
+    console.log('Valor:', target);
     setJuridicoTargetState(target);
-    localStorage.setItem('juridico_target', target.toString());
+    
+    try {
+      const response = await supabase
+        .from('settings')
+        .upsert([
+          { key: 'juridico_target', value: target.toString() }
+        ], { onConflict: 'key' });
+      
+      console.log('Resposta do Supabase:', response);
+      
+      if (response.error) {
+        console.error('Erro detalhado do Supabase:', response.error);
+        throw response.error;
+      }
+      
+      console.log('✅ Meta Jurídica salva no banco de dados!');
+    } catch (error) {
+      console.error('❌ Falha ao salvar no banco. Usando LocalStorage como backup.', error);
+      localStorage.setItem('juridico_target', target.toString());
+    }
+  };
+
+  const deleteTarget = async (key: 'comercial_target' | 'juridico_target') => {
+    console.log(`--- Resetando Meta: ${key} ---`);
+    try {
+      // Em vez de deletar a linha, vamos apenas zerar o valor.
+      // Isso é mais seguro e garante que o card suma da interface.
+      const { error } = await supabase
+        .from('settings')
+        .upsert([{ key, value: '0' }], { onConflict: 'key' });
+        
+      if (error) throw error;
+      
+      if (key === 'comercial_target') {
+        setComercialTargetState(0);
+        localStorage.setItem('comercial_target', '0');
+      } else {
+        setJuridicoTargetState(0);
+        localStorage.setItem('juridico_target', '0');
+      }
+      
+      console.log(`✅ Meta ${key} resetada para 0 com sucesso!`);
+    } catch (error) {
+      console.error(`❌ Erro ao resetar meta ${key}:`, error);
+    }
   };
 
   // Fetch initial data from Supabase
@@ -94,7 +156,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
           { data: transactionsData, error: transactionsError },
           { data: historyData, error: historyError },
           { data: agendaData, error: agendaError },
-          { data: timeRecordsData, error: timeRecordsError }
+          { data: timeRecordsData, error: timeRecordsError },
+          { data: settingsData }
         ] = await Promise.all([
           supabase.from('users').select('*'),
           supabase.from('leads').select('*').order('created_at', { ascending: false }),
@@ -102,8 +165,19 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
           supabase.from('transactions').select('*').order('date', { ascending: false }),
           supabase.from('history_records').select('*').order('created_at', { ascending: false }),
           supabase.from('agenda').select('*').order('date', { ascending: true }),
-          supabase.from('time_records').select('*').order('date', { ascending: false })
+          supabase.from('time_records').select('*').order('date', { ascending: false }),
+          supabase.from('settings').select('*')
         ]);
+
+        if (settingsData) {
+          const comercial = settingsData.find((s: any) => s.key === 'comercial_target');
+          const juridico = settingsData.find((s: any) => s.key === 'juridico_target');
+          setComercialTargetState(comercial ? Number(comercial.value) : 0);
+          setJuridicoTargetState(juridico ? Number(juridico.value) : 0);
+        } else {
+          setComercialTargetState(0);
+          setJuridicoTargetState(0);
+        }
 
         // Handle potential auth errors (401 Unauthorized)
         const errors = [usersError, leadsError, costsError, transactionsError, historyError, agendaError, timeRecordsError].filter(Boolean);
@@ -218,6 +292,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const timeRecordsSub = supabase.channel('time_records_changes').on('postgres_changes' as any, { event: '*', table: 'time_records' }, fetchData).subscribe();
 
+    const settingsSub = supabase.channel('settings_changes').on('postgres_changes' as any, { event: '*', table: 'settings' }, fetchData).subscribe();
+
     return () => {
       supabase.removeChannel(usersSub);
       supabase.removeChannel(leadsSub);
@@ -225,6 +301,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       supabase.removeChannel(transactionsSub);
       supabase.removeChannel(historySub);
       supabase.removeChannel(timeRecordsSub);
+      supabase.removeChannel(settingsSub);
     };
   }, [user, addNotification]);
 
@@ -579,7 +656,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   return (
     <DataContext.Provider value={{ 
       users, leads, costs, transactions, history, loading,
-      comercialTarget, juridicoTarget, setComercialTarget, setJuridicoTarget,
+      comercialTarget, juridicoTarget, setComercialTarget, setJuridicoTarget, deleteTarget,
       addUser, updateUser, deleteUser,
       addLead, updateLead, deleteLead,
       addCost, updateCost, deleteCost,
