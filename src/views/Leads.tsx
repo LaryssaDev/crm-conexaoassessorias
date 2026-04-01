@@ -19,7 +19,7 @@ import {
 
 export const Leads: React.FC = () => {
   const { user } = useAuth();
-  const { leads, addLead, updateLead, deleteLead } = useData();
+  const { leads, addLead, updateLead, deleteLead, users } = useData();
   const { addNotification } = useNotifications();
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
@@ -76,6 +76,9 @@ export const Leads: React.FC = () => {
       installmentValue: parseCurrency(newLead.installmentValue),
       status: 'Novo',
       assignedTo: user?.id,
+      // Auto-assign based on department if user is a consultant
+      consultorComercialId: user?.role === 'Consultor' && user?.department === 'Comercial' ? user.id : undefined,
+      consultorJuridicoId: user?.role === 'Consultor' && user?.department === 'Jurídico' ? user.id : undefined,
       createdAt: new Date().toISOString()
     };
     addLead(lead);
@@ -274,6 +277,9 @@ export const Leads: React.FC = () => {
                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Contato</th>
                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Origem</th>
                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Contrato</th>
+                {(user?.role === 'Administrador' || user?.role === 'Financeiro') && (
+                  <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Consultor</th>
+                )}
                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Status</th>
                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">Ações</th>
               </tr>
@@ -313,6 +319,13 @@ export const Leads: React.FC = () => {
                       <p className="text-xs text-slate-500">R$ {(Number(lead.installmentValue) || 0).toLocaleString()}</p>
                     </div>
                   </td>
+                  {(user?.role === 'Administrador' || user?.role === 'Financeiro') && (
+                    <td className="px-6 py-4">
+                      <span className="text-sm text-slate-600">
+                        {users?.find(u => u.id === (lead.consultorJuridicoId || lead.consultorComercialId || lead.assignedTo))?.name || 'Não atribuído'}
+                      </span>
+                    </td>
+                  )}
                   <td className="px-6 py-4">
                     <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${getStatusColor(lead.status || 'Novo')}`}>
                       {lead.status || 'Novo'}
