@@ -67,63 +67,83 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
 
     // Initial session check
-    supabase.auth.getSession().then(({ data: { session }, error }) => {
-      if (error) {
-        console.error('Initial session check error:', error.message);
-        // If it's a refresh token error or session error, clear the session to allow a clean login
-        const isRefreshTokenError = 
-          error.message.toLowerCase().includes('refresh token') || 
-          error.message.toLowerCase().includes('refresh_token') ||
-          error.message.toLowerCase().includes('session_not_found');
+    if (isConfigured) {
+      supabase.auth.getSession().then(({ data: { session }, error }) => {
+        if (error) {
+          console.error('Initial session check error:', error.message);
+          // If it's a refresh token error or session error, clear the session to allow a clean login
+          const isRefreshTokenError = 
+            error.message.toLowerCase().includes('refresh token') || 
+            error.message.toLowerCase().includes('refresh_token') ||
+            error.message.toLowerCase().includes('session_not_found') ||
+            error.message.toLowerCase().includes('not found');
 
-        if (isRefreshTokenError) {
-          supabase.auth.signOut().finally(() => {
-            if (mounted) {
-              setUser(null);
-              setLoading(false);
+          if (isRefreshTokenError) {
+            console.warn('Invalid session detected, clearing auth state...');
+            // Manually clear storage as well to be sure
+            try {
+              localStorage.removeItem('supabase.auth.token');
+              // Clear any other potential supabase keys
+              for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key && key.includes('supabase')) {
+                  localStorage.removeItem(key);
+                }
+              }
+            } catch (e) {
+              console.error('Error clearing localStorage:', e);
             }
-          });
+
+            supabase.auth.signOut().catch(() => {}).finally(() => {
+              if (mounted) {
+                setUser(null);
+                setLoading(false);
+              }
+            });
+            return;
+          }
+          
+          if (mounted) setLoading(false);
           return;
         }
-        
-        if (mounted) setLoading(false);
-        return;
-      }
 
-      if (session?.user) {
-        fetchProfile(session.user);
-      } else {
-        if (mounted) setLoading(false);
-      }
-    }).catch(err => {
-      console.error('Initial session check exception:', err);
-      // On exception, try to clear session just in case
-      supabase.auth.signOut().finally(() => {
-        if (mounted) {
-          setUser(null);
-          setLoading(false);
-        }
-      });
-    });
-
-    // Listen for changes on auth state
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
         if (session?.user) {
           fetchProfile(session.user);
+        } else {
+          if (mounted) setLoading(false);
         }
-      } else if (event === 'SIGNED_OUT') {
-        if (mounted) {
-          setUser(null);
-          setLoading(false);
-        }
-      }
-    });
+      }).catch(err => {
+        console.error('Initial session check exception:', err);
+        // On exception, try to clear session just in case
+        supabase.auth.signOut().finally(() => {
+          if (mounted) {
+            setUser(null);
+            setLoading(false);
+          }
+        });
+      });
 
-    return () => {
-      mounted = false;
-      subscription.unsubscribe();
-    };
+      // Listen for changes on auth state
+      const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+        if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+          if (session?.user) {
+            fetchProfile(session.user);
+          }
+        } else if (event === 'SIGNED_OUT') {
+          if (mounted) {
+            setUser(null);
+            setLoading(false);
+          }
+        }
+      });
+
+      return () => {
+        mounted = false;
+        subscription.unsubscribe();
+      };
+    } else {
+      if (mounted) setLoading(false);
+    }
   }, []);
 
   const login = async (email: string, pass: string): Promise<boolean> => {
@@ -149,7 +169,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const logout = async () => {
-    await supabase.auth.signOut();
+    if (isConfigured) {
+      await supabase.auth.signOut();
+    }
     setUser(null);
   };
 

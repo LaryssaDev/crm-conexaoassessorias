@@ -43,7 +43,6 @@ export const Andamento: React.FC = () => {
     }
 
     return (lead.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-           (lead.cpf || '').includes(searchTerm) ||
            (lead.phone || '').includes(searchTerm);
   });
 

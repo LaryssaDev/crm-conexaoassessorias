@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNotifications } from '../context/NotificationContext';
-import { Bell, Search, Settings, X, Check, Trash2, UserPlus, CreditCard } from 'lucide-react';
+import { isConfigured } from '../lib/supabase';
+import { Bell, Search, Settings, X, Check, Trash2, UserPlus, CreditCard, AlertTriangle } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -37,7 +38,15 @@ export const Header: React.FC<HeaderProps> = ({ title }) => {
     <header className="h-20 bg-white border-b border-slate-200 flex items-center justify-between px-8 sticky top-0 z-10">
       <div>
         <h2 className="text-xl font-bold text-slate-800">{title}</h2>
-        <p className="text-xs text-slate-500">Bem-vindo de volta, {user?.name}</p>
+        <div className="flex items-center gap-2">
+          <p className="text-xs text-slate-500">Bem-vindo de volta, {user?.name}</p>
+          {!isConfigured && (
+            <div className="flex items-center gap-1 px-2 py-0.5 bg-amber-50 text-amber-600 rounded-full border border-amber-100 animate-pulse">
+              <AlertTriangle size={10} />
+              <span className="text-[10px] font-bold uppercase tracking-wider">Modo Offline</span>
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="flex items-center gap-6">

@@ -45,8 +45,7 @@ export const Atribuicao: React.FC = () => {
   };
 
   const filteredLeads = leads.filter(lead => 
-    lead.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    lead.cpf.includes(searchTerm)
+    lead.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (
@@ -94,7 +93,6 @@ export const Atribuicao: React.FC = () => {
                       </div>
                       <div>
                         <p className="text-sm font-bold text-slate-800">{lead.name}</p>
-                        <p className="text-xs text-slate-500">{lead.cpf}</p>
                       </div>
                     </div>
                   </td>

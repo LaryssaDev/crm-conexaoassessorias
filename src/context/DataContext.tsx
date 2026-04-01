@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { User, Lead, FixedCost, Transaction, HistoryRecord, AgendaItem, TimeRecord } from '../types';
 import { INITIAL_USERS, INITIAL_LEADS, INITIAL_COSTS, INITIAL_TRANSACTIONS, INITIAL_HISTORY } from '../constants';
-import { supabase } from '../lib/supabase';
+import { supabase, isConfigured } from '../lib/supabase';
 import { useNotifications } from './NotificationContext';
 import { useAuth } from './AuthContext';
 
@@ -66,17 +66,19 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Update local state first for immediate feedback
     setUsers(prev => prev.map(u => u.id === userId ? { ...u, target } : u));
     
-    try {
-      const response = await supabase
-        .from('settings')
-        .upsert([
-          { key: `user_target_${userId}`, value: target.toString() }
-        ], { onConflict: 'key' });
-      
-      if (response.error) throw response.error;
-      console.log(`✅ Meta Individual para ${userId} salva!`);
-    } catch (error) {
-      console.error('❌ Falha ao salvar meta individual.', error);
+    if (isConfigured) {
+      try {
+        const response = await supabase
+          .from('settings')
+          .upsert([
+            { key: `user_target_${userId}`, value: target.toString() }
+          ], { onConflict: 'key' });
+        
+        if (response.error) throw response.error;
+        console.log(`✅ Meta Individual para ${userId} salva!`);
+      } catch (error) {
+        console.error('❌ Falha ao salvar meta individual.', error);
+      }
     }
   };
 
@@ -85,23 +87,27 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     console.log('Valor:', target);
     setComercialTargetState(target);
     
-    try {
-      const response = await supabase
-        .from('settings')
-        .upsert([
-          { key: 'comercial_target', value: target.toString() }
-        ], { onConflict: 'key' });
-      
-      console.log('Resposta do Supabase:', response);
-      
-      if (response.error) {
-        console.error('Erro detalhado do Supabase:', response.error);
-        throw response.error;
+    if (isConfigured) {
+      try {
+        const response = await supabase
+          .from('settings')
+          .upsert([
+            { key: 'comercial_target', value: target.toString() }
+          ], { onConflict: 'key' });
+        
+        console.log('Resposta do Supabase:', response);
+        
+        if (response.error) {
+          console.error('Erro detalhado do Supabase:', response.error);
+          throw response.error;
+        }
+        
+        console.log('✅ Meta Comercial salva no banco de dados!');
+      } catch (error) {
+        console.error('❌ Falha ao salvar no banco. Usando LocalStorage como backup.', error);
+        localStorage.setItem('comercial_target', target.toString());
       }
-      
-      console.log('✅ Meta Comercial salva no banco de dados!');
-    } catch (error) {
-      console.error('❌ Falha ao salvar no banco. Usando LocalStorage como backup.', error);
+    } else {
       localStorage.setItem('comercial_target', target.toString());
     }
   };
@@ -111,38 +117,56 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     console.log('Valor:', target);
     setJuridicoTargetState(target);
     
-    try {
-      const response = await supabase
-        .from('settings')
-        .upsert([
-          { key: 'juridico_target', value: target.toString() }
-        ], { onConflict: 'key' });
-      
-      console.log('Resposta do Supabase:', response);
-      
-      if (response.error) {
-        console.error('Erro detalhado do Supabase:', response.error);
-        throw response.error;
+    if (isConfigured) {
+      try {
+        const response = await supabase
+          .from('settings')
+          .upsert([
+            { key: 'juridico_target', value: target.toString() }
+          ], { onConflict: 'key' });
+        
+        console.log('Resposta do Supabase:', response);
+        
+        if (response.error) {
+          console.error('Erro detalhado do Supabase:', response.error);
+          throw response.error;
+        }
+        
+        console.log('✅ Meta Jurídica salva no banco de dados!');
+      } catch (error) {
+        console.error('❌ Falha ao salvar no banco. Usando LocalStorage como backup.', error);
+        localStorage.setItem('juridico_target', target.toString());
       }
-      
-      console.log('✅ Meta Jurídica salva no banco de dados!');
-    } catch (error) {
-      console.error('❌ Falha ao salvar no banco. Usando LocalStorage como backup.', error);
+    } else {
       localStorage.setItem('juridico_target', target.toString());
     }
   };
 
   const deleteTarget = async (key: 'comercial_target' | 'juridico_target') => {
     console.log(`--- Resetando Meta: ${key} ---`);
-    try {
-      // Em vez de deletar a linha, vamos apenas zerar o valor.
-      // Isso é mais seguro e garante que o card suma da interface.
-      const { error } = await supabase
-        .from('settings')
-        .upsert([{ key, value: '0' }], { onConflict: 'key' });
+    if (isConfigured) {
+      try {
+        // Em vez de deletar a linha, vamos apenas zerar o valor.
+        // Isso é mais seguro e garante que o card suma da interface.
+        const { error } = await supabase
+          .from('settings')
+          .upsert([{ key, value: '0' }], { onConflict: 'key' });
+          
+        if (error) throw error;
         
-      if (error) throw error;
-      
+        if (key === 'comercial_target') {
+          setComercialTargetState(0);
+          localStorage.setItem('comercial_target', '0');
+        } else {
+          setJuridicoTargetState(0);
+          localStorage.setItem('juridico_target', '0');
+        }
+        
+        console.log(`✅ Meta ${key} resetada para 0 com sucesso!`);
+      } catch (error) {
+        console.error(`❌ Erro ao resetar meta ${key}:`, error);
+      }
+    } else {
       if (key === 'comercial_target') {
         setComercialTargetState(0);
         localStorage.setItem('comercial_target', '0');
@@ -150,10 +174,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setJuridicoTargetState(0);
         localStorage.setItem('juridico_target', '0');
       }
-      
-      console.log(`✅ Meta ${key} resetada para 0 com sucesso!`);
-    } catch (error) {
-      console.error(`❌ Erro ao resetar meta ${key}:`, error);
     }
   };
 
@@ -170,8 +190,19 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return;
     }
 
-    const fetchData = async () => {
-      setLoading(true);
+    const fetchData = async (showLoading = true) => {
+      if (!isConfigured) {
+        setLoading(false);
+        return;
+      }
+      
+      // Only show loading on initial fetch or when explicitly requested
+      // If showLoading is an object (from Supabase payload), treat as false
+      const shouldShowLoading = typeof showLoading === 'boolean' ? showLoading : false;
+      
+      if (shouldShowLoading) {
+        setLoading(true);
+      }
       try {
         const [
           { data: usersData, error: usersError },
@@ -291,44 +322,57 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     fetchData();
 
     // Set up real-time subscriptions
-    const usersSub = supabase.channel('users_changes').on('postgres_changes' as any, { event: '*', table: 'users' }, fetchData).subscribe();
+    let usersSub: any, leadsSub: any, costsSub: any, transactionsSub: any, historySub: any, timeRecordsSub: any, settingsSub: any;
     
-    const leadsSub = supabase.channel('leads_changes').on('postgres_changes' as any, { event: 'INSERT', table: 'leads' }, (payload: any) => {
-      const newLead = payload.new;
-      addNotification('Novo Lead', `O lead ${newLead.name} foi adicionado.`, 'lead');
-      fetchData();
-    }).on('postgres_changes' as any, { event: 'UPDATE', table: 'leads' }, fetchData).on('postgres_changes' as any, { event: 'DELETE', table: 'leads' }, fetchData).subscribe();
+    if (isConfigured) {
+      usersSub = supabase.channel('users_changes').on('postgres_changes' as any, { event: '*', table: 'users' }, fetchData).subscribe();
+      
+      leadsSub = supabase.channel('leads_changes').on('postgres_changes' as any, { event: 'INSERT', table: 'leads' }, (payload: any) => {
+        const newLead = payload.new;
+        addNotification('Novo Lead', `O lead ${newLead.name} foi adicionado.`, 'lead');
+        fetchData(false);
+      }).on('postgres_changes' as any, { event: 'UPDATE', table: 'leads' }, fetchData).on('postgres_changes' as any, { event: 'DELETE', table: 'leads' }, fetchData).subscribe();
 
-    const costsSub = supabase.channel('costs_changes').on('postgres_changes' as any, { event: '*', table: 'fixed_costs' }, fetchData).subscribe();
-    
-    const transactionsSub = supabase.channel('transactions_changes').on('postgres_changes' as any, { event: 'INSERT', table: 'transactions' }, (payload: any) => {
-      const newTransaction = payload.new;
-      if (newTransaction.type === 'Entrada') {
-        addNotification('Novo Pagamento', `Um pagamento de R$ ${newTransaction.value.toLocaleString()} foi recebido: ${newTransaction.description}`, 'payment');
-      }
-      fetchData();
-    }).on('postgres_changes' as any, { event: 'UPDATE', table: 'transactions' }, fetchData).on('postgres_changes' as any, { event: 'DELETE', table: 'transactions' }, fetchData).subscribe();
+      costsSub = supabase.channel('costs_changes').on('postgres_changes' as any, { event: '*', table: 'fixed_costs' }, fetchData).subscribe();
+      
+      transactionsSub = supabase.channel('transactions_changes').on('postgres_changes' as any, { event: 'INSERT', table: 'transactions' }, (payload: any) => {
+        const newTransaction = payload.new;
+        if (newTransaction.type === 'Entrada') {
+          addNotification('Novo Pagamento', `Um pagamento de R$ ${newTransaction.value.toLocaleString()} foi recebido: ${newTransaction.description}`, 'payment');
+        }
+        fetchData(false);
+      }).on('postgres_changes' as any, { event: 'UPDATE', table: 'transactions' }, fetchData).on('postgres_changes' as any, { event: 'DELETE', table: 'transactions' }, fetchData).subscribe();
 
-    const historySub = supabase.channel('history_changes').on('postgres_changes' as any, { event: 'INSERT', table: 'history_records' }, (payload: any) => {
-      const newRecord = payload.new;
-      if (newRecord.type === 'Pagamento') {
-        addNotification('Pagamento Registrado', `Pagamento de R$ ${newRecord.value.toLocaleString()} registrado em andamento.`, 'payment');
-      }
-      fetchData();
-    }).on('postgres_changes' as any, { event: 'UPDATE', table: 'history_records' }, fetchData).on('postgres_changes' as any, { event: 'DELETE', table: 'history_records' }, fetchData).subscribe();
+      historySub = supabase.channel('history_changes').on('postgres_changes' as any, { event: 'INSERT', table: 'history_records' }, (payload: any) => {
+        const newRecord = payload.new;
+        if (newRecord.type === 'Pagamento') {
+          addNotification('Pagamento Registrado', `Pagamento de R$ ${newRecord.value.toLocaleString()} registrado em andamento.`, 'payment');
+        }
+        fetchData(false);
+      }).on('postgres_changes' as any, { event: 'UPDATE', table: 'history_records' }, fetchData).on('postgres_changes' as any, { event: 'DELETE', table: 'history_records' }, fetchData).subscribe();
 
-    const timeRecordsSub = supabase.channel('time_records_changes').on('postgres_changes' as any, { event: '*', table: 'time_records' }, fetchData).subscribe();
+      timeRecordsSub = supabase.channel('time_records_changes').on('postgres_changes' as any, { event: '*', table: 'time_records' }, fetchData).subscribe();
 
-    const settingsSub = supabase.channel('settings_changes').on('postgres_changes' as any, { event: '*', table: 'settings' }, fetchData).subscribe();
+      settingsSub = supabase.channel('settings_changes').on('postgres_changes' as any, { event: '*', table: 'settings' }, (payload: any) => {
+        // Only fetch data if the changed setting is not related to PDF data
+        // to avoid unnecessary re-fetches while typing in the PDF tab
+        const changedKey = payload.new?.key || payload.old?.key;
+        if (changedKey && !changedKey.startsWith('pdf_data_')) {
+          fetchData(false);
+        }
+      }).subscribe();
+    }
 
     return () => {
-      supabase.removeChannel(usersSub);
-      supabase.removeChannel(leadsSub);
-      supabase.removeChannel(costsSub);
-      supabase.removeChannel(transactionsSub);
-      supabase.removeChannel(historySub);
-      supabase.removeChannel(timeRecordsSub);
-      supabase.removeChannel(settingsSub);
+      if (isConfigured) {
+        if (usersSub) supabase.removeChannel(usersSub);
+        if (leadsSub) supabase.removeChannel(leadsSub);
+        if (costsSub) supabase.removeChannel(costsSub);
+        if (transactionsSub) supabase.removeChannel(transactionsSub);
+        if (historySub) supabase.removeChannel(historySub);
+        if (timeRecordsSub) supabase.removeChannel(timeRecordsSub);
+        if (settingsSub) supabase.removeChannel(settingsSub);
+      }
     };
   }, [user, addNotification]);
 
@@ -342,14 +386,20 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setLastResetDate(today);
         localStorage.setItem('last_cost_reset', today);
         // Update Supabase
-        costs.forEach(async (cost) => {
-          await supabase.from('fixed_costs').update({ status: 'Pendente' }).eq('id', cost.id);
-        });
+        if (isConfigured) {
+          costs.forEach(async (cost) => {
+            await supabase.from('fixed_costs').update({ status: 'Pendente' }).eq('id', cost.id);
+          });
+        }
       }
     }
   }, [lastResetDate, costs]);
 
   const addUser = async (user: User, password?: string) => {
+    if (!isConfigured) {
+      setUsers(prev => [...prev, user]);
+      return;
+    }
     // If a password is provided, attempt to sign up the user in Supabase Auth
     if (password) {
       const { data: authData, error: authError } = await supabase.auth.signUp({
@@ -414,6 +464,10 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const updateUser = async (user: User) => {
+    if (!isConfigured) {
+      setUsers(prev => prev.map(u => u.id === user.id ? user : u));
+      return;
+    }
     const { error } = await supabase.from('users').update(user).eq('id', user.id);
     if (error) {
       console.error('Error updating user:', error);
@@ -422,6 +476,10 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const deleteUser = async (id: string) => {
+    if (!isConfigured) {
+      setUsers(prev => prev.filter(u => u.id !== id));
+      return;
+    }
     console.log('Attempting to delete user with ID:', id);
     try {
       // Nullify references in leads to avoid foreign key constraint errors
@@ -449,6 +507,10 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const addLead = async (lead: Lead) => {
+    if (!isConfigured) {
+      setLeads(prev => [lead, ...prev]);
+      return;
+    }
     const dbLead = {
       name: lead.name,
       phone: lead.phone,
@@ -473,6 +535,10 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const updateLead = async (lead: Lead) => {
+    if (!isConfigured) {
+      setLeads(prev => prev.map(l => l.id === lead.id ? lead : l));
+      return;
+    }
     const dbLead = {
       name: lead.name,
       phone: lead.phone,
@@ -496,6 +562,10 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const deleteLead = async (id: string) => {
+    if (!isConfigured) {
+      setLeads(prev => prev.filter(l => l.id !== id));
+      return;
+    }
     const { error } = await supabase.from('leads').delete().eq('id', id);
     if (error) {
       console.error('Error deleting lead:', error);
@@ -504,6 +574,10 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const addCost = async (cost: FixedCost) => {
+    if (!isConfigured) {
+      setCosts(prev => [...prev, cost]);
+      return;
+    }
     const dbCost = {
       description: cost.description,
       value: cost.value,
@@ -518,6 +592,10 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const updateCost = async (cost: FixedCost) => {
+    if (!isConfigured) {
+      setCosts(prev => prev.map(c => c.id === cost.id ? cost : c));
+      return;
+    }
     const dbCost = {
       description: cost.description,
       value: cost.value,
@@ -532,6 +610,10 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const deleteCost = async (id: string) => {
+    if (!isConfigured) {
+      setCosts(prev => prev.filter(c => c.id !== id));
+      return;
+    }
     const { error } = await supabase.from('fixed_costs').delete().eq('id', id);
     if (error) {
       console.error('Error deleting cost:', error);
@@ -540,6 +622,10 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const addTransaction = async (transaction: Transaction) => {
+    if (!isConfigured) {
+      setTransactions(prev => [...prev, transaction]);
+      return;
+    }
     const dbTransaction = {
       type: transaction.type,
       description: transaction.description,
@@ -556,6 +642,10 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const updateTransaction = async (transaction: Transaction) => {
+    if (!isConfigured) {
+      setTransactions(prev => prev.map(t => t.id === transaction.id ? transaction : t));
+      return;
+    }
     const { error } = await supabase.from('transactions').update(transaction).eq('id', transaction.id);
     if (error) {
       console.error('Error updating transaction:', error);
@@ -564,6 +654,10 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const deleteTransaction = async (id: string) => {
+    if (!isConfigured) {
+      setTransactions(prev => prev.filter(t => t.id !== id));
+      return;
+    }
     const { error } = await supabase.from('transactions').delete().eq('id', id);
     if (error) {
       console.error('Error deleting transaction:', error);
@@ -572,6 +666,10 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const addHistory = async (record: HistoryRecord) => {
+    if (!isConfigured) {
+      setHistory(prev => [record, ...prev]);
+      return;
+    }
     const dbRecord = {
       lead_id: record.leadId,
       user_id: record.userId,
@@ -591,6 +689,10 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const addAgendaItem = async (item: AgendaItem) => {
+    if (!isConfigured) {
+      setAgenda(prev => [...prev, item]);
+      return;
+    }
     const dbItem = {
       title: item.title,
       date: item.date,
@@ -606,6 +708,10 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const deleteAgendaItem = async (id: string) => {
+    if (!isConfigured) {
+      setAgenda(prev => prev.filter(i => i.id !== id));
+      return;
+    }
     const { error } = await supabase.from('agenda').delete().eq('id', id);
     if (error) {
       console.error('Error deleting agenda item:', error);
@@ -614,6 +720,10 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const addTimeRecord = async (record: TimeRecord) => {
+    if (!isConfigured) {
+      setTimeRecords(prev => [...prev, record]);
+      return;
+    }
     const dbRecord = {
       user_id: record.userId,
       date: record.date,
@@ -631,6 +741,10 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const updateTimeRecord = async (record: TimeRecord) => {
+    if (!isConfigured) {
+      setTimeRecords(prev => prev.map(r => r.id === record.id ? record : r));
+      return;
+    }
     const dbRecord = {
       check_in: record.checkIn,
       lunch_start: record.lunchStart,
@@ -645,6 +759,10 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const saveLeadPdfData = async (leadId: string, data: any) => {
+    if (!isConfigured) {
+      localStorage.setItem(`pdf_data_${leadId}`, JSON.stringify(data));
+      return;
+    }
     try {
       const { error } = await supabase
         .from('settings')
@@ -660,6 +778,10 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const getLeadPdfData = async (leadId: string) => {
+    if (!isConfigured) {
+      const saved = localStorage.getItem(`pdf_data_${leadId}`);
+      return saved ? JSON.parse(saved) : null;
+    }
     try {
       const { data, error } = await supabase
         .from('settings')
@@ -706,7 +828,11 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     }
 
-    await supabase.from('fixed_costs').update({ status: newStatus }).eq('id', id);
+    if (isConfigured) {
+      await supabase.from('fixed_costs').update({ status: newStatus }).eq('id', id);
+    } else {
+      setCosts(prev => prev.map(c => c.id === id ? { ...c, status: newStatus } : c));
+    }
   }, [costs, transactions]);
 
   return (

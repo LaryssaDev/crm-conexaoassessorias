@@ -76,17 +76,6 @@ export const Contrato: React.FC = () => {
     loadSavedData();
   }, [selectedLead, getLeadPdfData]);
 
-  // Auto-save effect with debounce
-  useEffect(() => {
-    if (!selectedLead) return;
-    
-    const timer = setTimeout(() => {
-      saveLeadPdfData(selectedLead.id, contractInfo);
-    }, 1000); // Save after 1 second of inactivity
-
-    return () => clearTimeout(timer);
-  }, [contractInfo, selectedLead, saveLeadPdfData]);
-
   const handleSaveData = async () => {
     if (!selectedLead) return;
     setIsSaving(true);
@@ -819,7 +808,6 @@ São Paulo, ${formatDateByExtension(contractInfo.dataContrato)}`;
                         <div className="flex justify-between items-start">
                           <div>
                             <p className="text-sm font-bold text-slate-800">{lead.name}</p>
-                            <p className="text-xs text-slate-500">CPF: {lead.cpf}</p>
                           </div>
                           <span className={cn(
                             "text-[10px] px-2 py-0.5 rounded-full font-bold uppercase",
