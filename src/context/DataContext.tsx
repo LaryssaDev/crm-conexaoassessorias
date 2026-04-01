@@ -227,7 +227,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setLeads(leadsData.map((l: any) => ({
             id: l.id,
             name: l.name,
-            cpf: l.cpf,
             phone: l.phone,
             email: l.email,
             origin: l.origin,
@@ -452,7 +451,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const addLead = async (lead: Lead) => {
     const dbLead = {
       name: lead.name,
-      cpf: lead.cpf,
       phone: lead.phone,
       email: lead.email,
       origin: lead.origin,
@@ -477,7 +475,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const updateLead = async (lead: Lead) => {
     const dbLead = {
       name: lead.name,
-      cpf: lead.cpf,
       phone: lead.phone,
       email: lead.email,
       origin: lead.origin,

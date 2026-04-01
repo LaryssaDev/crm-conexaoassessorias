@@ -187,7 +187,6 @@ export const Leads: React.FC = () => {
         const lead: Lead = {
           id: crypto.randomUUID(),
           name: values[0] || '',
-          cpf: '', // CPF removed from leads view
           phone: values[1] || '',
           phone2: values[2] || '',
           email: values[3] || '',

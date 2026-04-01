@@ -21,7 +21,6 @@ export interface User {
 export interface Lead {
   id: string;
   name: string;
-  cpf: string;
   phone: string;
   phone2?: string;
   email: string;
