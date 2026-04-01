@@ -15,6 +15,7 @@ export interface User {
   role: UserRole;
   department: Department;
   teamId?: string;
+  target?: number;
 }
 
 export interface Lead {

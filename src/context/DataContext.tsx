@@ -17,6 +17,7 @@ interface DataContextType {
   juridicoTarget: number;
   setComercialTarget: (target: number) => void;
   setJuridicoTarget: (target: number) => void;
+  setUserTarget: (userId: string, target: number) => Promise<void>;
   deleteTarget: (key: 'comercial_target' | 'juridico_target') => Promise<void>;
   addUser: (user: User, password?: string) => Promise<void>;
   updateUser: (user: User) => Promise<void>;
@@ -37,6 +38,8 @@ interface DataContextType {
   timeRecords: TimeRecord[];
   addTimeRecord: (record: TimeRecord) => Promise<void>;
   updateTimeRecord: (record: TimeRecord) => Promise<void>;
+  saveLeadPdfData: (leadId: string, data: any) => Promise<void>;
+  getLeadPdfData: (leadId: string) => Promise<any>;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -55,6 +58,27 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [lastResetDate, setLastResetDate] = useState<string | null>(localStorage.getItem('last_cost_reset'));
   const [comercialTarget, setComercialTargetState] = useState<number>(0);
   const [juridicoTarget, setJuridicoTargetState] = useState<number>(0);
+
+  const setUserTarget = async (userId: string, target: number) => {
+    console.log(`--- Sincronizando Meta Individual: ${userId} ---`);
+    console.log('Valor:', target);
+    
+    // Update local state first for immediate feedback
+    setUsers(prev => prev.map(u => u.id === userId ? { ...u, target } : u));
+    
+    try {
+      const response = await supabase
+        .from('settings')
+        .upsert([
+          { key: `user_target_${userId}`, value: target.toString() }
+        ], { onConflict: 'key' });
+      
+      if (response.error) throw response.error;
+      console.log(`✅ Meta Individual para ${userId} salva!`);
+    } catch (error) {
+      console.error('❌ Falha ao salvar meta individual.', error);
+    }
+  };
 
   const setComercialTarget = async (target: number) => {
     console.log('--- Iniciando Sincronização de Meta Comercial ---');
@@ -190,10 +214,14 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
 
         if (usersData) {
-          setUsers(usersData.length > 0 ? usersData.map((u: any) => ({
-            ...u,
-            createdAt: u.created_at
-          })) : INITIAL_USERS);
+          setUsers(usersData.length > 0 ? usersData.map((u: any) => {
+            const userTarget = settingsData?.find((s: any) => s.key === `user_target_${u.id}`);
+            return {
+              ...u,
+              createdAt: u.created_at,
+              target: userTarget ? Number(userTarget.value) : undefined
+            };
+          }) : INITIAL_USERS);
         }
         if (leadsData) {
           setLeads(leadsData.map((l: any) => ({
@@ -619,6 +647,37 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const saveLeadPdfData = async (leadId: string, data: any) => {
+    try {
+      const { error } = await supabase
+        .from('settings')
+        .upsert([
+          { key: `pdf_data_${leadId}`, value: JSON.stringify(data) }
+        ], { onConflict: 'key' });
+      
+      if (error) throw error;
+    } catch (error) {
+      console.error('Error saving lead PDF data:', error);
+      throw error;
+    }
+  };
+
+  const getLeadPdfData = async (leadId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('settings')
+        .select('value')
+        .eq('key', `pdf_data_${leadId}`)
+        .single();
+      
+      if (error && error.code !== 'PGRST116') throw error; // PGRST116 is "no rows returned"
+      return data ? JSON.parse(data.value) : null;
+    } catch (error) {
+      console.error('Error getting lead PDF data:', error);
+      return null;
+    }
+  };
+
   const toggleCostStatus = useCallback(async (id: string) => {
     const costToToggle = costs.find(c => c.id === id);
     if (!costToToggle) return;
@@ -656,7 +715,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   return (
     <DataContext.Provider value={{ 
       users, leads, costs, transactions, history, loading,
-      comercialTarget, juridicoTarget, setComercialTarget, setJuridicoTarget, deleteTarget,
+      comercialTarget, juridicoTarget, setComercialTarget, setJuridicoTarget, setUserTarget, deleteTarget,
       addUser, updateUser, deleteUser,
       addLead, updateLead, deleteLead,
       addCost, updateCost, deleteCost,
@@ -668,7 +727,9 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       deleteAgendaItem,
       timeRecords,
       addTimeRecord,
-      updateTimeRecord
+      updateTimeRecord,
+      saveLeadPdfData,
+      getLeadPdfData
     }}>
       {children}
     </DataContext.Provider>

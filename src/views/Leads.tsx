@@ -31,7 +31,6 @@ export const Leads: React.FC = () => {
   // Form state for new lead
   const [newLead, setNewLead] = useState({
     name: '',
-    cpf: '',
     phone: '',
     phone2: '',
     email: '',
@@ -56,8 +55,7 @@ export const Leads: React.FC = () => {
       if (!isSupervisor) return false;
     }
 
-    return (lead.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-           (lead.cpf || '').includes(searchTerm)
+    return (lead.name || '').toLowerCase().includes(searchTerm.toLowerCase());
   });
 
   const getStatusColor = (status: string) => {
@@ -87,7 +85,7 @@ export const Leads: React.FC = () => {
       'lead'
     );
     setShowAddModal(false);
-    setNewLead({ name: '', cpf: '', phone: '', phone2: '', email: '', origin: 'Instagram', contractType: 'Veiculo', installmentValue: '' });
+    setNewLead({ name: '', phone: '', phone2: '', email: '', origin: 'Instagram', contractType: 'Veiculo', installmentValue: '' });
   };
 
   const handleEditLead = (e: React.FormEvent) => {
@@ -107,12 +105,11 @@ export const Leads: React.FC = () => {
   };
 
   const exportLeads = () => {
-    const headers = ['Nome', 'CPF', 'Telefone', 'Telefone 2', 'E-mail', 'Origem', 'Tipo de Contrato', 'Valor da Parcela', 'Status', 'Data de Criação'];
+    const headers = ['Nome', 'Telefone', 'Telefone 2', 'E-mail', 'Origem', 'Tipo de Contrato', 'Valor da Parcela', 'Status', 'Data de Criação'];
     const csvContent = [
       headers.join(';'),
       ...leads.map(l => [
         `"${(l.name || '').replace(/"/g, '""')}"`,
-        `"${(l.cpf || '').replace(/"/g, '""')}"`,
         `"${(l.phone || '').replace(/"/g, '""')}"`,
         `"${(l.phone2 || '').replace(/"/g, '""')}"`,
         `"${(l.email || '').replace(/"/g, '""')}"`,
@@ -187,16 +184,16 @@ export const Leads: React.FC = () => {
         const lead: Lead = {
           id: crypto.randomUUID(),
           name: values[0] || '',
-          cpf: values[1] || '',
-          phone: values[2] || '',
-          phone2: values[3] || '',
-          email: values[4] || '',
-          origin: values[5] || 'Instagram',
-          contractType: values[6] || 'Veiculo',
-          installmentValue: Number((values[7] || '0').replace(',', '.')),
-          status: (values[8] || 'Novo') as any,
+          cpf: '', // CPF removed from leads view
+          phone: values[1] || '',
+          phone2: values[2] || '',
+          email: values[3] || '',
+          origin: values[4] || 'Instagram',
+          contractType: values[5] || 'Veiculo',
+          installmentValue: Number((values[6] || '0').replace(',', '.')),
+          status: (values[7] || 'Novo') as any,
           assignedTo: user?.id,
-          createdAt: values[9] || new Date().toISOString()
+          createdAt: values[8] || new Date().toISOString()
         };
         
         importedLeads.push(lead);
@@ -225,7 +222,7 @@ export const Leads: React.FC = () => {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
             <input 
               type="text" 
-              placeholder="Buscar por nome ou CPF..." 
+              placeholder="Buscar por nome..." 
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="bg-white border border-slate-200 rounded-xl py-2.5 pl-10 pr-4 text-sm w-80 focus:ring-2 focus:ring-primary/20 outline-none transition-all"
@@ -291,7 +288,6 @@ export const Leads: React.FC = () => {
                       </div>
                       <div>
                         <p className="text-sm font-bold text-slate-800">{lead.name || 'Sem nome'}</p>
-                        <p className="text-xs text-slate-500">{lead.cpf || 'Sem CPF'}</p>
                       </div>
                     </div>
                   </td>
@@ -382,16 +378,6 @@ export const Leads: React.FC = () => {
                     required
                     value={editingLead.name}
                     onChange={(e) => setEditingLead({...editingLead, name: e.target.value})}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-4 text-sm outline-none focus:ring-2 focus:ring-primary/20"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">CPF</label>
-                  <input 
-                    type="text"
-                    required
-                    value={editingLead.cpf}
-                    onChange={(e) => setEditingLead({...editingLead, cpf: e.target.value})}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-4 text-sm outline-none focus:ring-2 focus:ring-primary/20"
                   />
                 </div>
@@ -547,17 +533,6 @@ export const Leads: React.FC = () => {
                     onChange={(e) => setNewLead({...newLead, name: e.target.value})}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-4 text-sm outline-none focus:ring-2 focus:ring-primary/20"
                     placeholder="Nome do cliente"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">CPF</label>
-                  <input 
-                    type="text"
-                    required
-                    value={newLead.cpf}
-                    onChange={(e) => setNewLead({...newLead, cpf: e.target.value})}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-4 text-sm outline-none focus:ring-2 focus:ring-primary/20"
-                    placeholder="000.000.000-00"
                   />
                 </div>
                 <div>

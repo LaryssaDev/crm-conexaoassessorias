@@ -7,8 +7,9 @@ import { jsPDF } from 'jspdf';
 
 export const Contrato: React.FC = () => {
   const { user } = useAuth();
-  const { leads } = useData();
+  const { leads, saveLeadPdfData, getLeadPdfData } = useData();
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isGeneratingReceipt, setIsGeneratingReceipt] = useState(false);
   const [isGeneratingAuthorization, setIsGeneratingAuthorization] = useState(false);
@@ -27,6 +28,7 @@ export const Contrato: React.FC = () => {
   }, []);
 
   const [contractInfo, setContractInfo] = useState({
+    cpf: '',
     estadoCivil: '',
     endereco: '',
     numero: '',
@@ -40,6 +42,51 @@ export const Contrato: React.FC = () => {
     formaPagamento: '',
     dataContrato: new Date().toISOString().split('T')[0]
   });
+
+  useEffect(() => {
+    const loadSavedData = async () => {
+      if (selectedLead) {
+        const savedData = await getLeadPdfData(selectedLead.id);
+        if (savedData) {
+          setContractInfo(prev => ({
+            ...prev,
+            ...savedData,
+            dataContrato: prev.dataContrato // Keep current date unless saved data has it
+          }));
+        } else {
+          // Reset if no saved data
+          setContractInfo({
+            cpf: '',
+            estadoCivil: '',
+            endereco: '',
+            numero: '',
+            bairro: '',
+            cidade: '',
+            estado: '',
+            cep: '',
+            credor: '',
+            valor: '',
+            parcelas: '',
+            formaPagamento: '',
+            dataContrato: new Date().toISOString().split('T')[0]
+          });
+        }
+      }
+    };
+    loadSavedData();
+  }, [selectedLead, getLeadPdfData]);
+
+  const handleSaveData = async () => {
+    if (!selectedLead) return;
+    setIsSaving(true);
+    try {
+      await saveLeadPdfData(selectedLead.id, contractInfo);
+    } catch (error) {
+      console.error('Error saving PDF data:', error);
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   const getBase64ImageFromUrl = async (imageUrl: string) => {
     try {
@@ -66,8 +113,7 @@ export const Contrato: React.FC = () => {
     return `${date.getDate()} de ${months[date.getMonth()]} de ${date.getFullYear()}`;
   };
   const filteredLeads = leads.filter(lead => 
-    lead.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    lead.cpf.includes(searchTerm)
+    lead.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const handleSelectLead = (lead: Lead) => {
@@ -75,9 +121,9 @@ export const Contrato: React.FC = () => {
     setSearchTerm(lead.name);
     setIsDropdownOpen(false);
   };
-
   const generatePDF = async () => {
     if (!selectedLead) return;
+    await handleSaveData();
     setIsGenerating(true);
 
     try {
@@ -164,26 +210,26 @@ CLÁUSULA 9ª: O (a) CONTRATANTE se obriga neste ato a manter seus dados, tais c
 
 PARAGRAFO PRIMEIRO: Declara o (a) CONTRATANTE estar ciente que em caso de falta de contato pelo período igual ou maior há 90 (noventa) dias, por motivos desconhecidos ou não previamente informados, a CONTRATADA suspenderá o serviço pelo mesmo prazo. Decorrido 90 (noventa) dias de suspensão contratual sem que haja a manifestação do (a) CONTRATANTE, o contrato será cancelado pela CONTRATADA sem devolução do valor pago, não tendo o (a) CONTRATANTE direitos de reaver a quantia ou serviço.
 
-PARÁGRAFO SEGUNDO: As informações sobre os serviços prestados pela CONTRATADA serão prestadas somente à pessoa do (a) CONTRATANTE, sendo que em caso de informações ao TERCEIRO INTERESSADO sobre os serviços prestados pela CONTRATADA somente serão disponibilizados mediante a indicação expressa do (a) CONTRATANTE com a apresentação dos dados para cadastro do TERCEIRO INTERESSADO. Se porventura o (a) CONTRATANTE quiser revogar a autorização de recebimento de informações a terceiros deverá comunicar expressamente a CONTRATADA desta intenção.
+PARÁGRAFO SEGUNDO: As informações sobre os serviços prestados pela CONTRATADA serão prestadas somente à pessoa do (a) CONTRATANTE, sendo que em caso de informações ao TERCEIRO INTERESSADO sobre os serviços prestados pela CONTRATADA somente serão disponibilizados mediante a indicação expressa do (a) CONTRATANTE with a apresentação dos dados para cadastro do TERCEIRO INTERESSADO. Se porventura o (a) CONTRATANTE quiser revogar a autorização de recebimento de informações a terceiros deverá comunicar expressamente a CONTRATADA desta intenção.
 
 CLÁUSULA 10ª: As notificações descritas nas cláusulas 3ª e 4ª deste contrato serão feitas prioritariamente por e-mail, no endereço digital fornecido pelo (a) CONTRATANTE, sendo de sua inteira responsabilidade acompanhar seu correio eletrônico, isentando a CONTRATADA de qualquer responsabilidade por eventuais perdas de prazo decorrentes do não acompanhamento do e-mail.
 
 CLÁUSULA 11ª: O (a) CONTRATANTE declara ciência de que as negociações serão realizadas exclusivamente pela CONTRATADA, sendo que sua intervenção junto aos seus credores poderá influenciar, em forma negativa nas estratégias negociais empregadas pela CONTRATADA. Neste sentido declara o (a) CONTRATANTE que se eventual prejuízo às negociações forem identificados por sua intervenção, ficará a CONTRATADA isenta de qualquer responsabilidade pelo atraso nos resultados, bem como, pelo insucesso da negociação outrora iniciada, visto pelo que se orienta a não interferir na negociação, respeitando até mesmo a natureza da contratação e obrigações da CONTRATADA constante neste contrato.
 
-PARÁGRAFO PRIMEIRO: Se o (a) CONTRATANTE infringir o constante no caput desta cláusula, causando prejuízo às atividades da CONTRATADA no tocante às negociações, objeto do contrato, imagem e ou relacionamento com o credor, o presente contrato de prestação será rescindido, não tendo o (a) CONTRATANTE direito à restituição dos valores pagos a CONTRATADA devendo, ainda, o (a) CONTRATANTE arcar com multa equivalente a 30% (trinta por cento) do valor fixado a título de honorários pagos pela prestação de serviços deste contrato.
+PARÁGRAFO PRIMEIRO: Se o (a) CONTRATANTE infringir o constante no caput desta cláusula, causando prejuízo às atividades da CONTRATADA no tocante às negociações, objeto do contrato, imagem e ou relacionamento com o credor, o presente contrato de prestação será rescindido, não tendo o (a) CONTRATANTE direito à restituição dos valores pagos a CONTRATADA devendo, ainda, o (a) CONTRATANTE arcar with multa equivalente a 30% (trinta por cento) do valor fixado a título de honorários pagos pela prestação de serviços deste contrato.
 
 PARÁGRAFO SEGUNDO: Caso haja, por parte do CONTRATANTE, abertura de reclamação no órgão PROCON ou nos sites: google.com.br e/ou reclameaqui.com.br, durante a vigência do contrato celebrado, este será rescindido unilateralmente, sem a restituição de valores pagos anteriormente. Para tais manifestações a CONTRATADA disponibiliza de canal próprio para o serviço de atendimento ao consumidor (SAC) na clausula 18ª deste contrato.
 
 CLÁUSULA 12ª: A título de honorários pela prestação dos serviços objeto deste contrato o (a) CONTRATANTE pagará a importância de R$XXXX,XX que serão pagos nas seguintes condições:
 mmmmmmmmmmmmmmmm R$XXXX,XX (XX) XX/XX/XXXX
 
-PARÁGRAFO PRIMEIRO: Caso tenha sido avençado entre as partes pagamento parcelado em boleto e/ou depósitos, transferências ou pix, a prestação de serviços só será iniciada após a quitação do valor integral estipulado e, em caso de inadimplência, o (a) CONTRATANTE arcará com juros de mora de 1% ao mês, multa de 2% sobre a parcela vencida e correção monetária, autorizando desde já que a CONTRATADA envie boleto bancário com o valor acrescido dos encargos da mora.
+PARÁGRAFO PRIMEIRO: Caso tenha sido avençado entre as partes pagamento parcelado em boleto e/ou depósitos, transferências ou pix, a prestação de serviços só será iniciada após a quitação do valor integral estipulado e, em caso de inadimplência, o (a) CONTRATANTE arcará with juros de mora de 1% ao mês, multa de 2% sobre a parcela vencida e correção monetária, autorizando desde já que a CONTRATADA envie boleto bancário with o valor acrescido dos encargos da mora.
 
 PARÁGRAFO SEGUNDO: Neste ato o (a) CONTRATANTE declara estar ciente de que é de sua responsabilidade o pagamento de custas e emolumentos, taxas, honorários para elaboração de laudos, honorários advocatícios, entre outros que se fizerem necessários para a prestação dos serviços contratados, as quais correrão por sua conta e sem que haja relação ao valor descrito no caput desta clausula. O (a) CONTRATANTE declara ainda ter ciência de que a CONTRATADA não antecipará os referidos pagamentos em hipótese alguma.
 
 CLÁUSULA 13ª: O (a) CONTRATANTE declara estar ciente de que o prazo MÉDIO para realização do serviço e renegociações extrajudiciais é de 120 (Cento e vinte) dias úteis contados da efetiva entrega dos documentos constante da cláusula 7ª deste contrato.
 
-PARÁGRAFO PRIMEIRO: Decorrido o prazo descrito no caput desta clausula, tendo a CONTRATADA apresentado propostas com 51% ou mais de redução sobre o montante devido, caso o (a) CONTRATANTE tenha rejeitado as propostas notificadas ou tenha se mantido silente quanto a elas, o presente contrato será rescindido imediatamente, pelo cumprimento das obrigações nele avençadas, independentemente de notificação judicial ou extrajudicial, não podendo o (a) CONTRATANTE nada reclamar a, e/ou sobre a, CONTRATADA.
+PARÁGRAFO PRIMEIRO: Decorrido o prazo descrito no caput desta clausula, tendo a CONTRATADA apresentado propostas with 51% ou mais de redução sobre o montante devido, caso o (a) CONTRATANTE tenha rejeitado as propostas notificadas ou tenha se mantido silente quanto a elas, o presente contrato será rescindido imediatamente, pelo cumprimento das obrigações nele avençadas, independentemente de notificação judicial ou extrajudicial, não podendo o (a) CONTRATANTE nada reclamar a, e/ou sobre a, CONTRATADA.
 
 PARÁGRAFO SEGUNDO: Ressalva-se que o prazo citado no Caput desta Cláusula refere- se apenas ao Processo Extrajudicial. Em caso da necessidade de Medidas Judiciais, havendo prazos determinados, estes serão mencionados em termo aditivo que, obrigatoriamente, antecederá qualquer processo judicial a ser proposto pela CONTRATADA.
 
@@ -197,7 +243,7 @@ CLÁUSULA 17ª: Caso seja necessário o ingresso ou defesa em ação judicial, a
 
 PARAGRÁFO ÚNICO: Ficará eleito o foro do domicílio da CONTRATADA, para dirimir questões oriundas do presente contrato. CONEXAO ASSESSORIA, regularmente inscrita no CNPJ sob o nº 37.423.637/0001-09
 
-CLÁUSULA 18ª: Todos e quaisquer contatos efetuados pela CONTRATADA ao (a) CONTRATANTE serão por meio dos números telefônicos 1194878-6367, por carta registrada, e/ou por e-mails com domínio @conexaoassessoria.com ou pelo SAC 1193208-8350 portanto deverá o (a) CONTRATANTE desconsiderar outros tipos de contatos e envios, não tendo a CONTRATADA responsabilidade por eventuais desconfortos e/ou prejuízos.
+CLÁUSULA 18ª: Todos e quaisquer contatos efetuados pela CONTRATADA ao (a) CONTRATANTE serão por meio dos números telefônicos 1194878-6367, por carta registrada, e/ou por e-mails with domínio @conexaoassessoria.com ou pelo SAC 1193208-8350 portanto deverá o (a) CONTRATANTE desconsiderar outros tipos de contatos e envios, não tendo a CONTRATADA responsabilidade por eventuais desconfortos e/ou prejuízos.
 
 CLÁUSULA 19ª: O presente contrato tem validade a partir da assinatura das partes, entrando em Vigor na data em que se comprovar o recebimento integral dos valores acordados, conforme previsto no Parágrafo 1° da Cláusula 12ª do presente Contrato.
 
@@ -206,7 +252,7 @@ São Paulo, xx de xxxxxxxxxxx de 2026`;
       const finalContent = contractText
         .replace(/aaaaaaaaaaaaaaaaaaaaaaa/g, selectedLead.name)
         .replace(/bbbbbbbbb/g, contractInfo.estadoCivil)
-        .replace(/XXX\.XXX\.XXX-XX/g, selectedLead.cpf)
+        .replace(/XXX\.XXX\.XXX-XX/g, contractInfo.cpf)
         .replace(/yyyyyyyyyyyyy/g, contractInfo.endereco)
         .replace(/qq/g, contractInfo.numero)
         .replace(/llllllllllllllllllll/g, contractInfo.bairro)
@@ -235,7 +281,7 @@ São Paulo, xx de xxxxxxxxxxx de 2026`;
         'CLÁUSULA 13ª', 'CLÁUSULA 14ª', 'CLÁUSULA 15ª', 'CLÁUSULA 16ª', 
         'CLÁUSULA 17ª', 'CLÁUSULA 18ª', 'CLÁUSULA 19ª',
         selectedLead.name,
-        selectedLead.cpf,
+        contractInfo.cpf,
         contractInfo.estadoCivil,
         fullAddress,
         contractInfo.endereco,
@@ -350,6 +396,7 @@ São Paulo, xx de xxxxxxxxxxx de 2026`;
 
   const generateReceiptPDF = async () => {
     if (!selectedLead) return;
+    await handleSaveData();
     setIsGeneratingReceipt(true);
 
     try {
@@ -409,7 +456,7 @@ São Paulo, xx de xxxxxxxxxxx de 2026`;
       const finalBodyText = bodyText
         .replace(/aaaaaaaaaaaaaaaaaaaaaaa/g, selectedLead.name)
         .replace(/bbbbbbbbb/g, contractInfo.estadoCivil)
-        .replace(/XXX\.XXX\.XXX-XX/g, selectedLead.cpf)
+        .replace(/XXX\.XXX\.XXX-XX/g, contractInfo.cpf)
         .replace(/yyyyyyyyyyyyy/g, contractInfo.endereco)
         .replace(/qq/g, contractInfo.numero)
         .replace(/llllllllllllllllllll/g, contractInfo.bairro)
@@ -422,7 +469,7 @@ São Paulo, xx de xxxxxxxxxxx de 2026`;
         'CONEXAO ASSESSORIA',
         'CONTRATANTE', 'CONTRATADA',
         selectedLead.name,
-        selectedLead.cpf,
+        contractInfo.cpf,
         contractInfo.estadoCivil,
         fullAddress,
         contractInfo.endereco,
@@ -538,6 +585,7 @@ São Paulo, xx de xxxxxxxxxxx de 2026`;
 
   const generateAuthorizationPDF = async () => {
     if (!selectedLead) return;
+    await handleSaveData();
     setIsGeneratingAuthorization(true);
 
     try {
@@ -593,7 +641,7 @@ São Paulo, ${formatDateByExtension(contractInfo.dataContrato)}`;
       const finalBodyText = bodyText
         .replace(/aaaaaaaaaaaaaaaaaaaaaaa/g, selectedLead.name)
         .replace(/bbbbbbbbb/g, contractInfo.estadoCivil)
-        .replace(/XXX\.XXX\.XXX-XX/g, selectedLead.cpf)
+        .replace(/XXX\.XXX\.XXX-XX/g, contractInfo.cpf)
         .replace(/yyyyyyyyyyyyy/g, contractInfo.endereco)
         .replace(/qq/g, contractInfo.numero)
         .replace(/llllllllllllllllllll/g, contractInfo.bairro)
@@ -609,7 +657,7 @@ São Paulo, ${formatDateByExtension(contractInfo.dataContrato)}`;
         'CONTRATANTE', 'CONTRATADA',
         'empresa contratada',
         selectedLead.name,
-        selectedLead.cpf,
+        contractInfo.cpf,
         contractInfo.estadoCivil,
         fullAddress,
         contractInfo.endereco,
@@ -793,13 +841,23 @@ São Paulo, ${formatDateByExtension(contractInfo.dataContrato)}`;
                 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   <div>
+                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">CPF</label>
+                    <input 
+                      type="text"
+                      value={contractInfo.cpf}
+                      onChange={(e) => setContractInfo({...contractInfo, cpf: e.target.value})}
+                      className="w-full bg-white border border-slate-200 rounded-xl py-2.5 px-4 text-sm outline-none focus:ring-2 focus:ring-primary/20"
+                      placeholder="000.000.000-00"
+                    />
+                  </div>
+                  <div>
                     <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Estado Civil</label>
                     <input 
                       type="text"
                       value={contractInfo.estadoCivil}
                       onChange={(e) => setContractInfo({...contractInfo, estadoCivil: e.target.value})}
                       className="w-full bg-white border border-slate-200 rounded-xl py-2.5 px-4 text-sm outline-none focus:ring-2 focus:ring-primary/20 transition-all"
-                      placeholder="Ex: Solteiro(a)"
+                      placeholder="Ex: Solteiro(a), Casado(a)..."
                     />
                   </div>
                   <div className="md:col-span-2">
@@ -915,6 +973,21 @@ São Paulo, ${formatDateByExtension(contractInfo.dataContrato)}`;
                       className="w-full bg-white border border-slate-200 rounded-xl py-2.5 px-4 text-sm outline-none focus:ring-2 focus:ring-primary/20 transition-all"
                     />
                   </div>
+                </div>
+
+                <div className="flex justify-end pt-4">
+                  <button
+                    onClick={handleSaveData}
+                    disabled={isSaving}
+                    className="flex items-center gap-2 px-6 py-2.5 bg-slate-800 text-white rounded-xl hover:bg-slate-700 transition-all disabled:opacity-50"
+                  >
+                    {isSaving ? (
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    ) : (
+                      <CheckCircle2 size={18} />
+                    )}
+                    Salvar Informações
+                  </button>
                 </div>
               </div>
 
