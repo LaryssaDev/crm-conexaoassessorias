@@ -342,13 +342,15 @@ export const Leads: React.FC = () => {
                       >
                         <Edit2 size={16} />
                       </button>
-                      <button 
-                        onClick={() => setShowDeleteConfirm(lead.id)}
-                        className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
-                        title="Apagar"
-                      >
-                        <Trash2 size={16} />
-                      </button>
+                      {user?.role !== 'Consultor' && (
+                        <button 
+                          onClick={() => setShowDeleteConfirm(lead.id)}
+                          className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                          title="Apagar"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>

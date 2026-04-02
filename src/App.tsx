@@ -18,6 +18,7 @@ import { Ponto } from './views/Ponto';
 import { Contrato } from './views/Contrato';
 import { CustosFixos } from './views/CustosFixos';
 import { Financeiro } from './views/Financeiro';
+import { Documentacao } from './views/Documentacao';
 import { Loader2 } from 'lucide-react';
 
 const AppContent: React.FC = () => {
@@ -53,6 +54,7 @@ const AppContent: React.FC = () => {
       case 'Equipe': return <Equipe />;
       case 'Ponto': return <Ponto />;
       case "PDF's": return <Contrato />;
+      case 'Documentação': return <Documentacao />;
       case 'Custos Fixos': return <CustosFixos />;
       case 'Financeiro': return <Financeiro />;
       default: return <Dashboard />;

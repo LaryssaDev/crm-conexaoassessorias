@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
-import { User, Lead, FixedCost, Transaction, HistoryRecord, AgendaItem, TimeRecord } from '../types';
+import { User, Lead, FixedCost, Transaction, HistoryRecord, AgendaItem, TimeRecord, Document } from '../types';
 import { INITIAL_USERS, INITIAL_LEADS, INITIAL_COSTS, INITIAL_TRANSACTIONS, INITIAL_HISTORY } from '../constants';
 import { supabase, isConfigured } from '../lib/supabase';
 import { useNotifications } from './NotificationContext';
@@ -40,6 +40,11 @@ interface DataContextType {
   updateTimeRecord: (record: TimeRecord) => Promise<void>;
   saveLeadPdfData: (leadId: string, data: any) => Promise<void>;
   getLeadPdfData: (leadId: string) => Promise<any>;
+  pdfDrafts: Record<string, any>;
+  setPdfDraft: (leadId: string, data: any) => void;
+  documents: Document[];
+  uploadDocument: (leadId: string, file: File) => Promise<void>;
+  deleteDocument: (id: string) => Promise<void>;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -54,6 +59,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [history, setHistory] = useState<HistoryRecord[]>(INITIAL_HISTORY);
   const [agenda, setAgenda] = useState<AgendaItem[]>([]);
   const [timeRecords, setTimeRecords] = useState<TimeRecord[]>([]);
+  const [documents, setDocuments] = useState<Document[]>([]);
+  const [pdfDrafts, setPdfDrafts] = useState<Record<string, any>>({});
   const [loading, setLoading] = useState(false);
   const [lastResetDate, setLastResetDate] = useState<string | null>(localStorage.getItem('last_cost_reset'));
   const [comercialTarget, setComercialTargetState] = useState<number>(0);
@@ -177,6 +184,146 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const fetchData = useCallback(async (showLoading = true) => {
+    if (!isConfigured) {
+      setLoading(false);
+      return;
+    }
+    
+    // Only show loading on initial fetch or when explicitly requested
+    // If showLoading is an object (from Supabase payload), treat as false
+    const shouldShowLoading = typeof showLoading === 'boolean' ? showLoading : false;
+    
+    if (shouldShowLoading) {
+      setLoading(true);
+    }
+    try {
+      const [
+        { data: usersData, error: usersError },
+        { data: leadsData, error: leadsError },
+        { data: costsData, error: costsError },
+        { data: transactionsData, error: transactionsError },
+        { data: historyData, error: historyError },
+        { data: agendaData, error: agendaError },
+        { data: timeRecordsData, error: timeRecordsError },
+        { data: settingsData },
+        { data: documentsData, error: documentsError }
+      ] = await Promise.all([
+        supabase.from('users').select('*'),
+        supabase.from('leads').select('*').order('created_at', { ascending: false }),
+        supabase.from('fixed_costs').select('*').order('due_date', { ascending: true }),
+        supabase.from('transactions').select('*').order('date', { ascending: false }),
+        supabase.from('history_records').select('*').order('created_at', { ascending: false }),
+        supabase.from('agenda').select('*').order('date', { ascending: true }),
+        supabase.from('time_records').select('*').order('date', { ascending: false }),
+        supabase.from('settings').select('*'),
+        supabase.from('documents').select('*').order('created_at', { ascending: false })
+      ]);
+
+      if (settingsData) {
+        const comercial = settingsData.find((s: any) => s.key === 'comercial_target');
+        const juridico = settingsData.find((s: any) => s.key === 'juridico_target');
+        setComercialTargetState(comercial ? Number(comercial.value) : 0);
+        setJuridicoTargetState(juridico ? Number(juridico.value) : 0);
+      } else {
+        setComercialTargetState(0);
+        setJuridicoTargetState(0);
+      }
+
+      // Handle potential auth errors (401 Unauthorized)
+      const errors = [usersError, leadsError, costsError, transactionsError, historyError, agendaError, timeRecordsError, documentsError].filter(Boolean);
+      if (errors.some(err => err?.message.includes('JWT') || err?.message.includes('Unauthorized') || err?.code === 'PGRST301')) {
+        console.error('Auth error detected during data fetch. Session might be invalid.');
+        // AuthContext will handle the actual logout via onAuthStateChange if the session is truly gone,
+        // but we can at least stop loading here.
+        setLoading(false);
+        return;
+      }
+
+      if (usersData) {
+        setUsers(usersData.length > 0 ? usersData.map((u: any) => {
+          const userTarget = settingsData?.find((s: any) => s.key === `user_target_${u.id}`);
+          return {
+            ...u,
+            createdAt: u.created_at,
+            target: userTarget ? Number(userTarget.value) : undefined
+          };
+        }) : INITIAL_USERS);
+      }
+      if (leadsData) {
+        setLeads(leadsData.map((l: any) => ({
+          id: l.id,
+          name: l.name,
+          phone: l.phone,
+          email: l.email,
+          origin: l.origin,
+          contractType: l.contract_type || l.contractType,
+          installmentValue: l.installment_value || l.installmentValue,
+          status: l.status,
+          assignedTo: l.assigned_to || l.assignedTo,
+          supervisorId: l.supervisor_id || l.supervisorId,
+          supervisorComercialId: l.supervisor_comercial_id || l.supervisorComercialId,
+          consultorComercialId: l.consultor_comercial_id || l.consultorComercialId,
+          supervisorJuridicoId: l.supervisor_juridico_id || l.supervisorJuridicoId,
+          consultorJuridicoId: l.consultor_juridico_id || l.consultorJuridicoId,
+          createdAt: l.created_at || l.createdAt
+        })));
+      }
+      if (costsData) {
+        setCosts(costsData.map((c: any) => ({
+          ...c,
+          dueDate: c.due_date || c.dueDate
+        })));
+      }
+      if (transactionsData) setTransactions(transactionsData);
+      if (historyData) {
+        setHistory(historyData.map((h: any) => ({
+          id: h.id,
+          leadId: h.lead_id || h.leadId,
+          userId: h.user_id || h.userId,
+          department: h.department,
+          type: h.type,
+          description: h.description,
+          value: h.value,
+          paymentMethod: h.payment_method || h.paymentMethod,
+          installments: h.installments,
+          createdAt: h.created_at || h.createdAt
+        })));
+      }
+      if (agendaData) {
+        setAgenda(agendaData.map((a: any) => ({
+          ...a,
+          userId: a.user_id,
+          createdAt: a.created_at
+        })));
+      }
+      if (timeRecordsData) {
+        setTimeRecords(timeRecordsData.map((tr: any) => ({
+          ...tr,
+          userId: tr.user_id,
+          checkIn: tr.check_in,
+          lunchStart: tr.lunch_start,
+          lunchEnd: tr.lunch_end,
+          checkOut: tr.check_out,
+          createdAt: tr.created_at
+        })));
+      }
+
+      if (documentsData) {
+        setDocuments(documentsData.map((d: any) => ({
+          ...d,
+          createdAt: d.created_at,
+          uploadedBy: d.uploaded_by,
+          leadId: d.lead_id
+        })));
+      }
+    } catch (error) {
+      console.error('Error fetching data from Supabase:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   // Fetch initial data from Supabase
   useEffect(() => {
     if (!user) {
@@ -190,139 +337,10 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return;
     }
 
-    const fetchData = async (showLoading = true) => {
-      if (!isConfigured) {
-        setLoading(false);
-        return;
-      }
-      
-      // Only show loading on initial fetch or when explicitly requested
-      // If showLoading is an object (from Supabase payload), treat as false
-      const shouldShowLoading = typeof showLoading === 'boolean' ? showLoading : false;
-      
-      if (shouldShowLoading) {
-        setLoading(true);
-      }
-      try {
-        const [
-          { data: usersData, error: usersError },
-          { data: leadsData, error: leadsError },
-          { data: costsData, error: costsError },
-          { data: transactionsData, error: transactionsError },
-          { data: historyData, error: historyError },
-          { data: agendaData, error: agendaError },
-          { data: timeRecordsData, error: timeRecordsError },
-          { data: settingsData }
-        ] = await Promise.all([
-          supabase.from('users').select('*'),
-          supabase.from('leads').select('*').order('created_at', { ascending: false }),
-          supabase.from('fixed_costs').select('*').order('due_date', { ascending: true }),
-          supabase.from('transactions').select('*').order('date', { ascending: false }),
-          supabase.from('history_records').select('*').order('created_at', { ascending: false }),
-          supabase.from('agenda').select('*').order('date', { ascending: true }),
-          supabase.from('time_records').select('*').order('date', { ascending: false }),
-          supabase.from('settings').select('*')
-        ]);
-
-        if (settingsData) {
-          const comercial = settingsData.find((s: any) => s.key === 'comercial_target');
-          const juridico = settingsData.find((s: any) => s.key === 'juridico_target');
-          setComercialTargetState(comercial ? Number(comercial.value) : 0);
-          setJuridicoTargetState(juridico ? Number(juridico.value) : 0);
-        } else {
-          setComercialTargetState(0);
-          setJuridicoTargetState(0);
-        }
-
-        // Handle potential auth errors (401 Unauthorized)
-        const errors = [usersError, leadsError, costsError, transactionsError, historyError, agendaError, timeRecordsError].filter(Boolean);
-        if (errors.some(err => err?.message.includes('JWT') || err?.message.includes('Unauthorized') || err?.code === 'PGRST301')) {
-          console.error('Auth error detected during data fetch. Session might be invalid.');
-          // AuthContext will handle the actual logout via onAuthStateChange if the session is truly gone,
-          // but we can at least stop loading here.
-          setLoading(false);
-          return;
-        }
-
-        if (usersData) {
-          setUsers(usersData.length > 0 ? usersData.map((u: any) => {
-            const userTarget = settingsData?.find((s: any) => s.key === `user_target_${u.id}`);
-            return {
-              ...u,
-              createdAt: u.created_at,
-              target: userTarget ? Number(userTarget.value) : undefined
-            };
-          }) : INITIAL_USERS);
-        }
-        if (leadsData) {
-          setLeads(leadsData.map((l: any) => ({
-            id: l.id,
-            name: l.name,
-            phone: l.phone,
-            email: l.email,
-            origin: l.origin,
-            contractType: l.contract_type || l.contractType,
-            installmentValue: l.installment_value || l.installmentValue,
-            status: l.status,
-            assignedTo: l.assigned_to || l.assignedTo,
-            supervisorId: l.supervisor_id || l.supervisorId,
-            supervisorComercialId: l.supervisor_comercial_id || l.supervisorComercialId,
-            consultorComercialId: l.consultor_comercial_id || l.consultorComercialId,
-            supervisorJuridicoId: l.supervisor_juridico_id || l.supervisorJuridicoId,
-            consultorJuridicoId: l.consultor_juridico_id || l.consultorJuridicoId,
-            createdAt: l.created_at || l.createdAt
-          })));
-        }
-        if (costsData) {
-          setCosts(costsData.map((c: any) => ({
-            ...c,
-            dueDate: c.due_date || c.dueDate
-          })));
-        }
-        if (transactionsData) setTransactions(transactionsData);
-        if (historyData) {
-          setHistory(historyData.map((h: any) => ({
-            id: h.id,
-            leadId: h.lead_id || h.leadId,
-            userId: h.user_id || h.userId,
-            department: h.department,
-            type: h.type,
-            description: h.description,
-            value: h.value,
-            paymentMethod: h.payment_method || h.paymentMethod,
-            installments: h.installments,
-            createdAt: h.created_at || h.createdAt
-          })));
-        }
-        if (agendaData) {
-          setAgenda(agendaData.map((a: any) => ({
-            ...a,
-            userId: a.user_id,
-            createdAt: a.created_at
-          })));
-        }
-        if (timeRecordsData) {
-          setTimeRecords(timeRecordsData.map((tr: any) => ({
-            ...tr,
-            userId: tr.user_id,
-            checkIn: tr.check_in,
-            lunchStart: tr.lunch_start,
-            lunchEnd: tr.lunch_end,
-            checkOut: tr.check_out,
-            createdAt: tr.created_at
-          })));
-        }
-      } catch (error) {
-        console.error('Error fetching data from Supabase:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
     fetchData();
 
     // Set up real-time subscriptions
-    let usersSub: any, leadsSub: any, costsSub: any, transactionsSub: any, historySub: any, timeRecordsSub: any, settingsSub: any;
+    let usersSub: any, leadsSub: any, costsSub: any, transactionsSub: any, historySub: any, timeRecordsSub: any, settingsSub: any, documentsSub: any;
     
     if (isConfigured) {
       usersSub = supabase.channel('users_changes').on('postgres_changes' as any, { event: '*', table: 'users' }, fetchData).subscribe();
@@ -361,6 +379,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
           fetchData(false);
         }
       }).subscribe();
+
+      documentsSub = supabase.channel('documents_changes').on('postgres_changes' as any, { event: '*', table: 'documents' }, () => fetchData(false)).subscribe();
     }
 
     return () => {
@@ -372,9 +392,11 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (historySub) supabase.removeChannel(historySub);
         if (timeRecordsSub) supabase.removeChannel(timeRecordsSub);
         if (settingsSub) supabase.removeChannel(settingsSub);
+        // @ts-ignore
+        if (documentsSub) supabase.removeChannel(documentsSub);
       }
     };
-  }, [user, addNotification]);
+  }, [user, addNotification, fetchData]);
 
 
   useEffect(() => {
@@ -519,12 +541,12 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       contract_type: lead.contractType,
       installment_value: lead.installmentValue,
       status: lead.status,
-      assigned_to: lead.assignedTo,
-      supervisor_id: lead.supervisorId,
-      supervisor_comercial_id: lead.supervisorComercialId,
-      consultor_comercial_id: lead.consultorComercialId,
-      supervisor_juridico_id: lead.supervisorJuridicoId,
-      consultor_juridico_id: lead.consultorJuridicoId,
+      assigned_to: lead.assignedTo || null,
+      supervisor_id: lead.supervisorId || null,
+      supervisor_comercial_id: lead.supervisorComercialId || null,
+      consultor_comercial_id: lead.consultorComercialId || null,
+      supervisor_juridico_id: lead.supervisorJuridicoId || null,
+      consultor_juridico_id: lead.consultorJuridicoId || null,
       created_at: lead.createdAt
     };
     const { error } = await supabase.from('leads').insert([dbLead]);
@@ -547,12 +569,12 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       contract_type: lead.contractType,
       installment_value: lead.installmentValue,
       status: lead.status,
-      assigned_to: lead.assignedTo,
-      supervisor_id: lead.supervisorId,
-      supervisor_comercial_id: lead.supervisorComercialId,
-      consultor_comercial_id: lead.consultorComercialId,
-      supervisor_juridico_id: lead.supervisorJuridicoId,
-      consultor_juridico_id: lead.consultorJuridicoId
+      assigned_to: lead.assignedTo || null,
+      supervisor_id: lead.supervisorId || null,
+      supervisor_comercial_id: lead.supervisorComercialId || null,
+      consultor_comercial_id: lead.consultorComercialId || null,
+      supervisor_juridico_id: lead.supervisorJuridicoId || null,
+      consultor_juridico_id: lead.consultorJuridicoId || null
     };
     const { error } = await supabase.from('leads').update(dbLead).eq('id', lead.id);
     if (error) {
@@ -562,6 +584,10 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const deleteLead = async (id: string) => {
+    if (user?.role === 'Consultor') {
+      console.error('Consultants are not allowed to delete leads.');
+      return;
+    }
     if (!isConfigured) {
       setLeads(prev => prev.filter(l => l.id !== id));
       return;
@@ -758,6 +784,10 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const setPdfDraft = (leadId: string, data: any) => {
+    setPdfDrafts(prev => ({ ...prev, [leadId]: data }));
+  };
+
   const saveLeadPdfData = async (leadId: string, data: any) => {
     if (!isConfigured) {
       localStorage.setItem(`pdf_data_${leadId}`, JSON.stringify(data));
@@ -835,6 +865,80 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [costs, transactions]);
 
+  const uploadDocument = async (leadId: string, file: File) => {
+    if (!isConfigured || !user) return;
+    
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Math.random()}.${fileExt}`;
+      const filePath = `${leadId}/${fileName}`;
+
+      // 1. Upload to Supabase Storage
+      const { error: uploadError } = await supabase.storage
+        .from('documents')
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      // 2. Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('documents')
+        .getPublicUrl(filePath);
+
+      // 3. Save metadata to database
+      const newDoc = {
+        lead_id: leadId,
+        name: file.name,
+        url: publicUrl,
+        type: file.type,
+        size: file.size,
+        uploaded_by: user.name
+      };
+
+      const { error: dbError } = await supabase
+        .from('documents')
+        .insert([newDoc]);
+
+      if (dbError) throw dbError;
+      
+      addNotification('Documento Enviado', `O documento ${file.name} foi enviado com sucesso.`, 'lead');
+      fetchData(false);
+    } catch (error) {
+      console.error('Error uploading document:', error);
+      alert('Erro ao enviar documento. Verifique se o bucket "documents" existe no seu Supabase Storage.');
+    }
+  };
+
+  const deleteDocument = async (id: string) => {
+    if (!isConfigured) return;
+    
+    try {
+      const docToDelete = documents.find(d => d.id === id);
+      if (!docToDelete) return;
+
+      // Extract path from URL (assuming it's a Supabase Storage URL)
+      // URL format: .../storage/v1/object/public/documents/LEAD_ID/FILE_NAME
+      const urlParts = docToDelete.url.split('/');
+      const fileName = urlParts[urlParts.length - 1];
+      const leadId = docToDelete.leadId;
+      const filePath = `${leadId}/${fileName}`;
+
+      // 1. Delete from Storage
+      await supabase.storage.from('documents').remove([filePath]);
+
+      // 2. Delete from Database
+      const { error } = await supabase
+        .from('documents')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+      fetchData(false);
+    } catch (error) {
+      console.error('Error deleting document:', error);
+    }
+  };
+
   return (
     <DataContext.Provider value={{ 
       users, leads, costs, transactions, history, loading,
@@ -852,7 +956,12 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       addTimeRecord,
       updateTimeRecord,
       saveLeadPdfData,
-      getLeadPdfData
+      getLeadPdfData,
+      pdfDrafts,
+      setPdfDraft,
+      documents,
+      uploadDocument,
+      deleteDocument
     }}>
       {children}
     </DataContext.Provider>

@@ -7,7 +7,7 @@ import { jsPDF } from 'jspdf';
 
 export const Contrato: React.FC = () => {
   const { user } = useAuth();
-  const { leads, saveLeadPdfData, getLeadPdfData } = useData();
+  const { leads, saveLeadPdfData, getLeadPdfData, pdfDrafts, setPdfDraft } = useData();
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -15,6 +15,7 @@ export const Contrato: React.FC = () => {
   const [isGeneratingAuthorization, setIsGeneratingAuthorization] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [isLoadingSaved, setIsLoadingSaved] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -43,19 +44,45 @@ export const Contrato: React.FC = () => {
     dataContrato: new Date().toISOString().split('T')[0]
   });
 
+  // Load data when lead is selected
   useEffect(() => {
-    const loadSavedData = async () => {
-      if (selectedLead) {
+    const loadData = async () => {
+      if (!selectedLead) return;
+
+      // 1. Check if we have a draft in memory (from DataContext)
+      if (pdfDrafts[selectedLead.id]) {
+        setContractInfo(pdfDrafts[selectedLead.id]);
+        return;
+      }
+
+      // 2. If no draft in memory, check localStorage (as a backup)
+      const localDraft = localStorage.getItem(`pdf_draft_${selectedLead.id}`);
+      if (localDraft) {
+        try {
+          const parsed = JSON.parse(localDraft);
+          setContractInfo(parsed);
+          setPdfDraft(selectedLead.id, parsed);
+          return;
+        } catch (e) {
+          console.error('Error parsing local draft:', e);
+        }
+      }
+
+      // 3. If no draft anywhere, fetch from Supabase
+      setIsLoadingSaved(true);
+      try {
         const savedData = await getLeadPdfData(selectedLead.id);
         if (savedData) {
-          setContractInfo(prev => ({
-            ...prev,
+          const data = {
+            ...contractInfo,
             ...savedData,
-            dataContrato: prev.dataContrato // Keep current date unless saved data has it
-          }));
+            dataContrato: contractInfo.dataContrato // Keep current date unless saved data has it
+          };
+          setContractInfo(data);
+          setPdfDraft(selectedLead.id, data);
         } else {
-          // Reset if no saved data
-          setContractInfo({
+          // Reset to defaults if no saved data
+          const defaults = {
             cpf: '',
             estadoCivil: '',
             endereco: '',
@@ -69,18 +96,37 @@ export const Contrato: React.FC = () => {
             parcelas: '',
             formaPagamento: '',
             dataContrato: new Date().toISOString().split('T')[0]
-          });
+          };
+          setContractInfo(defaults);
+          setPdfDraft(selectedLead.id, defaults);
         }
+      } catch (error) {
+        console.error('Error loading saved data:', error);
+      } finally {
+        setIsLoadingSaved(false);
       }
     };
-    loadSavedData();
-  }, [selectedLead, getLeadPdfData]);
+
+    loadData();
+  }, [selectedLead]);
+
+  // Update draft in DataContext and localStorage as user types
+  const handleInfoChange = (updates: Partial<typeof contractInfo>) => {
+    const newInfo = { ...contractInfo, ...updates };
+    setContractInfo(newInfo);
+    if (selectedLead) {
+      setPdfDraft(selectedLead.id, newInfo);
+      localStorage.setItem(`pdf_draft_${selectedLead.id}`, JSON.stringify(newInfo));
+    }
+  };
 
   const handleSaveData = async () => {
     if (!selectedLead) return;
     setIsSaving(true);
     try {
       await saveLeadPdfData(selectedLead.id, contractInfo);
+      localStorage.removeItem(`pdf_draft_${selectedLead.id}`);
+      setPdfDraft(selectedLead.id, null); // Clear memory draft
     } catch (error) {
       console.error('Error saving PDF data:', error);
     } finally {
@@ -123,7 +169,6 @@ export const Contrato: React.FC = () => {
   };
   const generatePDF = async () => {
     if (!selectedLead) return;
-    await handleSaveData();
     setIsGenerating(true);
 
     try {
@@ -396,7 +441,6 @@ São Paulo, xx de xxxxxxxxxxx de 2026`;
 
   const generateReceiptPDF = async () => {
     if (!selectedLead) return;
-    await handleSaveData();
     setIsGeneratingReceipt(true);
 
     try {
@@ -585,7 +629,6 @@ São Paulo, xx de xxxxxxxxxxx de 2026`;
 
   const generateAuthorizationPDF = async () => {
     if (!selectedLead) return;
-    await handleSaveData();
     setIsGeneratingAuthorization(true);
 
     try {
@@ -734,6 +777,132 @@ São Paulo, ${formatDateByExtension(contractInfo.dataContrato)}`;
     }
   };
 
+  const generateNotificationPDF = async () => {
+    if (!selectedLead) return;
+    setIsGenerating(true);
+
+    try {
+      const doc = new jsPDF();
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const margin = 20;
+      const contentWidth = pageWidth - (margin * 2);
+      
+      // Header Logo
+      const logoUrl = 'https://i.imgur.com/pcnXKBK.jpeg';
+      const logoBase64 = await getBase64ImageFromUrl(logoUrl);
+      
+      let currentY = 10.5; // 40px margin top approx
+
+      if (logoBase64) {
+        const imgProps = doc.getImageProperties(logoBase64);
+        const maxLogoWidth = 32; // 120px approx
+        const logoHeight = (imgProps.height * maxLogoWidth) / imgProps.width;
+        doc.addImage(logoBase64, 'JPEG', (pageWidth - maxLogoWidth) / 2, currentY, maxLogoWidth, logoHeight);
+        currentY += logoHeight + 8; // 30px margin bottom approx
+      }
+
+      // Title
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(16);
+      doc.text('NOTIFICAÇÃO', pageWidth / 2, currentY + 5, { align: 'center' });
+      currentY += 20;
+
+      // Date
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(12);
+      doc.text(`São Paulo, ${formatDateByExtension(contractInfo.dataContrato)}`, margin, currentY);
+      currentY += 15;
+
+      // Recipient
+      doc.setFont('helvetica', 'bold');
+      doc.text(`Ao ${contractInfo.credor}`, margin, currentY);
+      currentY += 20;
+
+      // Body Text
+      const parts = [
+        { text: 'CONEXÃO ASSESSORIA', bold: true },
+        { text: ', regularmente inscrita no CNPJ sob o nº 37.423.637/0001-09, com sede social na R. Benjamin Pereira, 246 – Jaçanã, São Paulo – SP, 02274-000, neste ato representando ', bold: false },
+        { text: selectedLead.name, bold: true },
+        { text: ', pessoa física de direito privado, inscrito (a) no CPF sob o Nº ', bold: false },
+        { text: contractInfo.cpf, bold: true },
+        { text: '. Vimos por meio desta informar que em relação ao cliente acima mencionado, o mesmo requer uma proposta de acordo para rever os pagamentos de suas parcelas ou quitação, pois o mesmo quer solucionar a situação de melhor maneira, contando com o bom senso desta respeitável instituição. Caso não haja interesse de ajustar o acordo, V.S.ª ciente que serão tomadas as devidas providências cabíveis JUDICIAIS E/OU EXTRAJUDICIAIS, onde o cliente será representado pela empresa que está subscreve.', bold: false }
+      ];
+
+      const wordsWithStyle: { text: string, bold: boolean }[] = [];
+      parts.forEach(p => {
+        const words = p.text.split(' ');
+        words.forEach((w, i) => {
+          if (w || i < words.length - 1) {
+            wordsWithStyle.push({ text: w, bold: p.bold });
+          }
+        });
+      });
+
+      const lines: { text: string, bold: boolean }[][] = [];
+      let currentLine: { text: string, bold: boolean }[] = [];
+      let currentLineWidth = 0;
+
+      wordsWithStyle.forEach(wordObj => {
+        doc.setFont('helvetica', wordObj.bold ? 'bold' : 'normal');
+        const wordWidth = doc.getTextWidth(wordObj.text + ' ');
+        
+        if (currentLineWidth + wordWidth > contentWidth && currentLine.length > 0) {
+          lines.push(currentLine);
+          currentLine = [wordObj];
+          currentLineWidth = doc.getTextWidth(wordObj.text + ' ');
+        } else {
+          currentLine.push(wordObj);
+          currentLineWidth += wordWidth;
+        }
+      });
+      if (currentLine.length > 0) lines.push(currentLine);
+      
+      // Render lines
+      lines.forEach((line, index) => {
+        if (currentY + 7 > pageHeight - margin) {
+          doc.addPage();
+          currentY = margin;
+        }
+        
+        let x = margin;
+        const isLastLine = index === lines.length - 1;
+        
+        if (isLastLine || line.length === 1) {
+          line.forEach(wordObj => {
+            doc.setFont('helvetica', wordObj.bold ? 'bold' : 'normal');
+            doc.text(wordObj.text, x, currentY);
+            x += doc.getTextWidth(wordObj.text + ' ');
+          });
+        } else {
+          // Justification
+          let totalWordsWidth = 0;
+          line.forEach(wordObj => {
+            doc.setFont('helvetica', wordObj.bold ? 'bold' : 'normal');
+            totalWordsWidth += doc.getTextWidth(wordObj.text);
+          });
+          const spaceWidth = (contentWidth - totalWordsWidth) / (line.length - 1);
+          
+          line.forEach((wordObj, i) => {
+            doc.setFont('helvetica', wordObj.bold ? 'bold' : 'normal');
+            doc.text(wordObj.text, x, currentY);
+            x += doc.getTextWidth(wordObj.text) + spaceWidth;
+          });
+        }
+        currentY += 7;
+      });
+
+      currentY += 20;
+      doc.text('Atenciosamente,', margin, currentY);
+
+      doc.save(`Notificacao_${selectedLead.name.replace(/\s/g, '_')}.pdf`);
+    } catch (error) {
+      console.error("Error generating Notification PDF:", error);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
   return (
     <div className="max-w-5xl mx-auto space-y-8 pb-20">
       {/* Cabeçalho Profissional */}
@@ -838,13 +1007,21 @@ São Paulo, ${formatDateByExtension(contractInfo.dataContrato)}`;
                   Informações Adicionais do Contrato
                 </h4>
                 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 relative">
+                  {isLoadingSaved && (
+                    <div className="absolute inset-0 bg-white/50 backdrop-blur-[1px] z-10 flex items-center justify-center rounded-xl">
+                      <div className="flex flex-col items-center gap-2">
+                        <div className="w-8 h-8 border-4 border-primary/30 border-t-primary rounded-full animate-spin" />
+                        <p className="text-xs font-bold text-primary">Carregando dados salvos...</p>
+                      </div>
+                    </div>
+                  )}
                   <div>
                     <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">CPF</label>
                     <input 
                       type="text"
                       value={contractInfo.cpf}
-                      onChange={(e) => setContractInfo({...contractInfo, cpf: e.target.value})}
+                      onChange={(e) => handleInfoChange({ cpf: e.target.value })}
                       className="w-full bg-white border border-slate-200 rounded-xl py-2.5 px-4 text-sm outline-none focus:ring-2 focus:ring-primary/20"
                       placeholder="000.000.000-00"
                     />
@@ -854,7 +1031,7 @@ São Paulo, ${formatDateByExtension(contractInfo.dataContrato)}`;
                     <input 
                       type="text"
                       value={contractInfo.estadoCivil}
-                      onChange={(e) => setContractInfo({...contractInfo, estadoCivil: e.target.value})}
+                      onChange={(e) => handleInfoChange({ estadoCivil: e.target.value })}
                       className="w-full bg-white border border-slate-200 rounded-xl py-2.5 px-4 text-sm outline-none focus:ring-2 focus:ring-primary/20 transition-all"
                       placeholder="Ex: Solteiro(a), Casado(a)..."
                     />
@@ -864,7 +1041,7 @@ São Paulo, ${formatDateByExtension(contractInfo.dataContrato)}`;
                     <input 
                       type="text"
                       value={contractInfo.endereco}
-                      onChange={(e) => setContractInfo({...contractInfo, endereco: e.target.value})}
+                      onChange={(e) => handleInfoChange({ endereco: e.target.value })}
                       className="w-full bg-white border border-slate-200 rounded-xl py-2.5 px-4 text-sm outline-none focus:ring-2 focus:ring-primary/20 transition-all"
                       placeholder="Rua, Avenida..."
                     />
@@ -874,7 +1051,7 @@ São Paulo, ${formatDateByExtension(contractInfo.dataContrato)}`;
                     <input 
                       type="text"
                       value={contractInfo.numero}
-                      onChange={(e) => setContractInfo({...contractInfo, numero: e.target.value})}
+                      onChange={(e) => handleInfoChange({ numero: e.target.value })}
                       className="w-full bg-white border border-slate-200 rounded-xl py-2.5 px-4 text-sm outline-none focus:ring-2 focus:ring-primary/20 transition-all"
                       placeholder="123"
                     />
@@ -884,7 +1061,7 @@ São Paulo, ${formatDateByExtension(contractInfo.dataContrato)}`;
                     <input 
                       type="text"
                       value={contractInfo.bairro}
-                      onChange={(e) => setContractInfo({...contractInfo, bairro: e.target.value})}
+                      onChange={(e) => handleInfoChange({ bairro: e.target.value })}
                       className="w-full bg-white border border-slate-200 rounded-xl py-2.5 px-4 text-sm outline-none focus:ring-2 focus:ring-primary/20 transition-all"
                       placeholder="Centro"
                     />
@@ -894,7 +1071,7 @@ São Paulo, ${formatDateByExtension(contractInfo.dataContrato)}`;
                     <input 
                       type="text"
                       value={contractInfo.cidade}
-                      onChange={(e) => setContractInfo({...contractInfo, cidade: e.target.value})}
+                      onChange={(e) => handleInfoChange({ cidade: e.target.value })}
                       className="w-full bg-white border border-slate-200 rounded-xl py-2.5 px-4 text-sm outline-none focus:ring-2 focus:ring-primary/20 transition-all"
                       placeholder="São Paulo"
                     />
@@ -904,7 +1081,7 @@ São Paulo, ${formatDateByExtension(contractInfo.dataContrato)}`;
                     <input 
                       type="text"
                       value={contractInfo.estado}
-                      onChange={(e) => setContractInfo({...contractInfo, estado: e.target.value})}
+                      onChange={(e) => handleInfoChange({ estado: e.target.value })}
                       className="w-full bg-white border border-slate-200 rounded-xl py-2.5 px-4 text-sm outline-none focus:ring-2 focus:ring-primary/20 transition-all"
                       placeholder="SP"
                       maxLength={2}
@@ -915,7 +1092,7 @@ São Paulo, ${formatDateByExtension(contractInfo.dataContrato)}`;
                     <input 
                       type="text"
                       value={contractInfo.cep}
-                      onChange={(e) => setContractInfo({...contractInfo, cep: e.target.value})}
+                      onChange={(e) => handleInfoChange({ cep: e.target.value })}
                       className="w-full bg-white border border-slate-200 rounded-xl py-2.5 px-4 text-sm outline-none focus:ring-2 focus:ring-primary/20 transition-all"
                       placeholder="00000-000"
                     />
@@ -925,7 +1102,7 @@ São Paulo, ${formatDateByExtension(contractInfo.dataContrato)}`;
                     <input 
                       type="text"
                       value={contractInfo.credor}
-                      onChange={(e) => setContractInfo({...contractInfo, credor: e.target.value})}
+                      onChange={(e) => handleInfoChange({ credor: e.target.value })}
                       className="w-full bg-white border border-slate-200 rounded-xl py-2.5 px-4 text-sm outline-none focus:ring-2 focus:ring-primary/20 transition-all"
                       placeholder="Banco Itaú, Bradesco..."
                     />
@@ -938,7 +1115,7 @@ São Paulo, ${formatDateByExtension(contractInfo.dataContrato)}`;
                     <input 
                       type="text"
                       value={contractInfo.valor}
-                      onChange={(e) => setContractInfo({...contractInfo, valor: e.target.value})}
+                      onChange={(e) => handleInfoChange({ valor: e.target.value })}
                       className="w-full bg-white border border-slate-200 rounded-xl py-2.5 px-4 text-sm outline-none focus:ring-2 focus:ring-primary/20 transition-all"
                       placeholder="2.500,00"
                     />
@@ -948,7 +1125,7 @@ São Paulo, ${formatDateByExtension(contractInfo.dataContrato)}`;
                     <input 
                       type="text"
                       value={contractInfo.parcelas}
-                      onChange={(e) => setContractInfo({...contractInfo, parcelas: e.target.value})}
+                      onChange={(e) => handleInfoChange({ parcelas: e.target.value })}
                       className="w-full bg-white border border-slate-200 rounded-xl py-2.5 px-4 text-sm outline-none focus:ring-2 focus:ring-primary/20 transition-all"
                       placeholder="12x"
                     />
@@ -958,7 +1135,7 @@ São Paulo, ${formatDateByExtension(contractInfo.dataContrato)}`;
                     <input 
                       type="text"
                       value={contractInfo.formaPagamento}
-                      onChange={(e) => setContractInfo({...contractInfo, formaPagamento: e.target.value})}
+                      onChange={(e) => handleInfoChange({ formaPagamento: e.target.value })}
                       className="w-full bg-white border border-slate-200 rounded-xl py-2.5 px-4 text-sm outline-none focus:ring-2 focus:ring-primary/20 transition-all"
                       placeholder="Cartão, Boleto, PIX"
                     />
@@ -968,13 +1145,26 @@ São Paulo, ${formatDateByExtension(contractInfo.dataContrato)}`;
                     <input 
                       type="date"
                       value={contractInfo.dataContrato}
-                      onChange={(e) => setContractInfo({...contractInfo, dataContrato: e.target.value})}
+                      onChange={(e) => handleInfoChange({ dataContrato: e.target.value })}
                       className="w-full bg-white border border-slate-200 rounded-xl py-2.5 px-4 text-sm outline-none focus:ring-2 focus:ring-primary/20 transition-all"
                     />
                   </div>
                 </div>
 
-                <div className="flex justify-end pt-4">
+                <div className="flex justify-end gap-3 pt-4">
+                  <button
+                    onClick={() => {
+                      if (selectedLead) {
+                        localStorage.removeItem(`pdf_draft_${selectedLead.id}`);
+                        // Force reload from Supabase
+                        window.location.reload(); // Simple way to trigger reload, or just call loadSavedData
+                      }
+                    }}
+                    className="flex items-center gap-2 px-6 py-2.5 bg-slate-100 text-slate-600 rounded-xl hover:bg-slate-200 transition-all"
+                  >
+                    <X size={18} />
+                    Limpar Rascunho
+                  </button>
                   <button
                     onClick={handleSaveData}
                     disabled={isSaving}
@@ -1015,9 +1205,13 @@ São Paulo, ${formatDateByExtension(contractInfo.dataContrato)}`;
                   <CheckCircle2 size={20} />
                   {isGeneratingAuthorization ? 'Gerando...' : 'Autorização'}
                 </button>
-                <button className="flex items-center justify-center gap-2 py-4 bg-white border border-slate-200 text-slate-600 rounded-xl font-bold text-sm hover:bg-slate-50 transition-all">
+                <button 
+                  onClick={generateNotificationPDF}
+                  disabled={isGenerating}
+                  className="flex items-center justify-center gap-2 py-4 bg-primary text-white rounded-xl font-bold text-sm shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all disabled:opacity-50"
+                >
                   <FileText size={20} />
-                  Notificação de Acordo
+                  {isGenerating ? 'Gerando...' : 'Notificação de Acordo'}
                 </button>
               </div>
             </div>

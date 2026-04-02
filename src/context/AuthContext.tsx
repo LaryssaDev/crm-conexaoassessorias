@@ -201,6 +201,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       case "PDF's":
         return role === 'Administrador' || role === 'Financeiro' || role === 'Supervisor' || role === 'Consultor';
       
+      case 'Documentação':
+        return true;
+      
       case 'Custos Fixos':
       case 'Financeiro':
         return role === 'Administrador' || role === 'Financeiro';

@@ -37,6 +37,17 @@ export interface Lead {
   createdAt: string;
 }
 
+export interface Document {
+  id: string;
+  leadId: string;
+  name: string;
+  url: string;
+  type: string;
+  size: number;
+  uploadedBy: string;
+  createdAt: string;
+}
+
 export interface HistoryRecord {
   id: string;
   leadId: string;

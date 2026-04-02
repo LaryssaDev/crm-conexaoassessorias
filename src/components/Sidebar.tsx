@@ -38,6 +38,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
     { id: 'Equipe', icon: Users2 },
     { id: 'Ponto', icon: Clock },
     { id: "PDF's", icon: FileText },
+    { id: 'Documentação', icon: FileText },
     { id: 'Custos Fixos', icon: Calculator },
     { id: 'Financeiro', icon: DollarSign },
   ];

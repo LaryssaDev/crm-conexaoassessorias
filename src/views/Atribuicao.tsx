@@ -29,8 +29,9 @@ export const Atribuicao: React.FC = () => {
   const consultoresJuridico = users.filter(u => u.department === 'Jurídico' && u.role === 'Consultor');
 
   const handleAssign = (leadId: string, role: keyof Lead, userId: string) => {
+    const value = userId === "" ? null : userId;
     setLeads(prevLeads => prevLeads.map(lead => 
-      lead.id === leadId ? { ...lead, [role]: userId } : lead
+      lead.id === leadId ? { ...lead, [role]: value } : lead
     ));
   };
 
