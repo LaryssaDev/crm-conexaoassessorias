@@ -29,7 +29,7 @@ export const CustosFixos: React.FC = () => {
       const updatedCost: FixedCost = {
         ...editingCost,
         description: newCost.description,
-        value: parseCurrency(newTransactionValue),
+        value: parseCurrency(newCost.value),
         dueDate: formattedDay,
       };
       updateCost(updatedCost);
@@ -74,7 +74,6 @@ export const CustosFixos: React.FC = () => {
     return dueDate;
   };
 
-  const newTransactionValue = newCost.value;
 
   return (
     <div className="space-y-8">

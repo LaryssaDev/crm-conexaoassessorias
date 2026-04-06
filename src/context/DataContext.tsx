@@ -605,6 +605,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return;
     }
     const dbCost = {
+      id: cost.id,
       description: cost.description,
       value: cost.value,
       due_date: cost.dueDate,
