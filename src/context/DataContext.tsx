@@ -599,35 +599,29 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // Converts a day string (e.g. "10" or "05") to a full YYYY-MM-DD date using the current month.
-  // If it's already a full date, returns as-is.
-  const toFullDate = (dueDate: string): string => {
-    if (!dueDate) return new Date().toISOString().split('T')[0];
-    if (dueDate.includes('-')) return dueDate; // already full date
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const day = dueDate.padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  };
-
   const addCost = async (cost: FixedCost) => {
+    console.log('🔵 addCost chamado com:', cost);
+    console.log('🔵 isConfigured:', isConfigured);
     if (!isConfigured) {
       setCosts(prev => [...prev, cost]);
+      console.log('⚠️ Supabase não configurado — salvo apenas localmente');
       return;
     }
     const dbCost = {
       id: cost.id,
       description: cost.description,
       value: cost.value,
-      due_date: toFullDate(cost.dueDate),
+      due_date: cost.dueDate,
       status: cost.status
     };
-    const { error } = await supabase.from('fixed_costs').insert([dbCost]);
+    console.log('🔵 Enviando para Supabase:', dbCost);
+    const { data, error } = await supabase.from('fixed_costs').insert([dbCost]).select();
+    console.log('🔵 Resposta Supabase - data:', data, 'error:', error);
     if (error) {
-      console.error('Error adding cost:', error);
+      console.error('❌ Erro ao adicionar custo:', error.message, error.details, error.hint, error.code);
       throw error;
     }
+    console.log('✅ Custo salvo com sucesso:', data);
   };
 
   const updateCost = async (cost: FixedCost) => {
@@ -638,7 +632,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const dbCost = {
       description: cost.description,
       value: cost.value,
-      due_date: toFullDate(cost.dueDate),
+      due_date: cost.dueDate,
       status: cost.status
     };
     const { error } = await supabase.from('fixed_costs').update(dbCost).eq('id', cost.id);
