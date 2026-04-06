@@ -600,8 +600,11 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const addCost = async (cost: FixedCost) => {
+    console.log('🔵 addCost chamado com:', cost);
+    console.log('🔵 isConfigured:', isConfigured);
     if (!isConfigured) {
       setCosts(prev => [...prev, cost]);
+      console.log('⚠️ Supabase não configurado — salvo apenas localmente');
       return;
     }
     const dbCost = {
@@ -611,11 +614,14 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       due_date: cost.dueDate,
       status: cost.status
     };
-    const { error } = await supabase.from('fixed_costs').insert([dbCost]);
+    console.log('🔵 Enviando para Supabase:', dbCost);
+    const { data, error } = await supabase.from('fixed_costs').insert([dbCost]).select();
+    console.log('🔵 Resposta Supabase - data:', data, 'error:', error);
     if (error) {
-      console.error('Error adding cost:', error);
+      console.error('❌ Erro ao adicionar custo:', error.message, error.details, error.hint, error.code);
       throw error;
     }
+    console.log('✅ Custo salvo com sucesso:', data);
   };
 
   const updateCost = async (cost: FixedCost) => {
