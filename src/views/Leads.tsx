@@ -284,27 +284,31 @@ export const Leads: React.FC = () => {
             accept=".csv" 
             className="hidden" 
           />
-          <button 
-            onClick={handleImportClick}
-            className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-50 font-medium text-sm transition-all"
-          >
-            <Upload size={18} />
-            Importar
-          </button>
-          <button 
-            onClick={exportLeads}
-            className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-50 font-medium text-sm transition-all"
-          >
-            <Download size={18} />
-            Exportar
-          </button>
-          <button 
-            onClick={() => setShowAddModal(true)}
-            className="flex items-center gap-2 px-6 py-2.5 bg-primary text-white rounded-xl font-bold text-sm shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all"
-          >
-            <Plus size={18} />
-            Novo Lead
-          </button>
+          {user?.role !== 'Consultor' && (
+            <>
+              <button 
+                onClick={handleImportClick}
+                className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-50 font-medium text-sm transition-all"
+              >
+                <Upload size={18} />
+                Importar
+              </button>
+              <button 
+                onClick={exportLeads}
+                className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-50 font-medium text-sm transition-all"
+              >
+                <Download size={18} />
+                Exportar
+              </button>
+              <button 
+                onClick={() => setShowAddModal(true)}
+                className="flex items-center gap-2 px-6 py-2.5 bg-primary text-white rounded-xl font-bold text-sm shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all"
+              >
+                <Plus size={18} />
+                Novo Lead
+              </button>
+            </>
+          )}
         </div>
       </div>
 
