@@ -70,6 +70,26 @@ export const Leads: React.FC = () => {
 
   const handleAddLead = (e: React.FormEvent) => {
     e.preventDefault();
+
+    const normalizePhone = (str: string) => (str || '').replace(/[\D]/g, '');
+    
+    const isDuplicate = leads.some(lead => {
+      const nameMatch = (lead.name || '').toLowerCase().trim() === newLead.name.toLowerCase().trim();
+      const emailMatch = (lead.email || '').toLowerCase().trim() === newLead.email.toLowerCase().trim();
+      
+      const newPhones = [normalizePhone(newLead.phone), normalizePhone(newLead.phone2)].filter(Boolean);
+      const existingPhones = [normalizePhone(lead.phone), normalizePhone(lead.phone2)].filter(Boolean);
+      
+      const phoneMatch = newPhones.some(phone => existingPhones.includes(phone));
+
+      return nameMatch || emailMatch || phoneMatch;
+    });
+
+    if (isDuplicate) {
+      alert("Já existe um lead cadastrado com este Nome, E-mail ou Telefone.");
+      return;
+    }
+
     const lead: Lead = {
       id: crypto.randomUUID(),
       ...newLead,
@@ -94,6 +114,27 @@ export const Leads: React.FC = () => {
   const handleEditLead = (e: React.FormEvent) => {
     e.preventDefault();
     if (editingLead) {
+      const normalizePhone = (str: string) => (str || '').replace(/[\D]/g, '');
+      
+      const isDuplicate = leads.some(lead => {
+        if (lead.id === editingLead.id) return false;
+
+        const nameMatch = (lead.name || '').toLowerCase().trim() === editingLead.name.toLowerCase().trim();
+        const emailMatch = (lead.email || '').toLowerCase().trim() === editingLead.email.toLowerCase().trim();
+        
+        const newPhones = [normalizePhone(editingLead.phone), normalizePhone(editingLead.phone2)].filter(Boolean);
+        const existingPhones = [normalizePhone(lead.phone), normalizePhone(lead.phone2)].filter(Boolean);
+        
+        const phoneMatch = newPhones.some(phone => existingPhones.includes(phone));
+
+        return nameMatch || emailMatch || phoneMatch;
+      });
+
+      if (isDuplicate) {
+        alert("Já existe outro lead cadastrado com este Nome, E-mail ou Telefone.");
+        return;
+      }
+
       updateLead(editingLead);
       setShowEditModal(false);
       setEditingLead(null);
