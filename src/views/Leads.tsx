@@ -405,7 +405,7 @@ export const Leads: React.FC = () => {
         </div>
         
         <div className="px-6 py-4 bg-slate-50/50 border-t border-slate-100 flex items-center justify-between">
-          <p className="text-xs text-slate-500">Mostrando {filteredLeads.length} de {leads.length} leads</p>
+          <p className="text-xs text-slate-500">Mostrando {filteredLeads.length} de {filteredLeads.length} leads</p>
           <div className="flex gap-2">
             <button className="px-3 py-1 text-xs font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-50" disabled>Anterior</button>
             <button className="px-3 py-1 text-xs font-medium text-white bg-primary rounded-lg">1</button>
