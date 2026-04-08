@@ -19,6 +19,7 @@ import { CustosFixos } from './views/CustosFixos';
 import { Financeiro } from './views/Financeiro';
 import { Documentacao } from './views/Documentacao';
 import { Loader2 } from 'lucide-react';
+import { ThemeProvider } from './context/ThemeContext';
 
 const AppContent: React.FC = () => {
   const { user, loading: authLoading } = useAuth();
@@ -74,12 +75,14 @@ const AppContent: React.FC = () => {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <NotificationProvider>
-        <DataProvider>
-          <AppContent />
-        </DataProvider>
-      </NotificationProvider>
-    </AuthProvider>
+    <ThemeProvider>
+      <AuthProvider>
+        <NotificationProvider>
+          <DataProvider>
+            <AppContent />
+          </DataProvider>
+        </NotificationProvider>
+      </AuthProvider>
+    </ThemeProvider>
   );
 }

@@ -2,7 +2,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNotifications } from '../context/NotificationContext';
 import { isConfigured } from '../lib/supabase';
-import { Bell, Search, Settings, X, Check, Trash2, UserPlus, CreditCard, AlertTriangle } from 'lucide-react';
+import { Bell, Search, Sun, Moon, X, Check, Trash2, UserPlus, CreditCard, AlertTriangle } from 'lucide-react';
+import { useTheme } from '../context/ThemeContext';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -12,6 +13,7 @@ interface HeaderProps {
 
 export const Header: React.FC<HeaderProps> = ({ title }) => {
   const { user } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const { notifications, unreadCount, markAsRead, markAllAsRead, clearNotifications } = useNotifications();
   const [showNotifications, setShowNotifications] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -137,8 +139,14 @@ export const Header: React.FC<HeaderProps> = ({ title }) => {
               </div>
             )}
           </div>
-          <button className="p-2 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-full transition-all">
-            <Settings size={20} />
+          <button
+            onClick={toggleTheme}
+            className="p-2 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-full transition-all"
+            title={theme === 'dark' ? 'Mudar para tema claro' : 'Mudar para tema escuro'}
+          >
+            {theme === 'dark'
+              ? <Sun size={20} className="text-amber-400" />
+              : <Moon size={20} />}
           </button>
         </div>
       </div>
