@@ -8,6 +8,7 @@ export const Funil: React.FC = () => {
   const { user } = useAuth();
   const { leads, updateLead } = useData();
   const [searchTerm, setSearchTerm] = useState('');
+  const [searchType, setSearchType] = useState<'name' | 'phone'>('name');
   
   const columns = [
     { id: 'Novo', title: 'Novo', color: 'bg-blue-500' },
@@ -33,6 +34,13 @@ export const Funil: React.FC = () => {
       if (!isSupervisor) return false;
     }
 
+    if (!searchTerm) return true;
+    if (searchType === 'phone') {
+      const normalizedSearch = searchTerm.replace(/[\D]/g, '');
+      const phone1 = (l.phone || '').replace(/[\D]/g, '');
+      const phone2 = (l.phone2 || '').replace(/[\D]/g, '');
+      return phone1.includes(normalizedSearch) || phone2.includes(normalizedSearch);
+    }
     return (l.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
            (l.origin || '').toLowerCase().includes(searchTerm.toLowerCase());
   });
@@ -42,15 +50,25 @@ export const Funil: React.FC = () => {
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-          <input 
-            type="text" 
-            placeholder="Buscar por nome ou origem..." 
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full bg-slate-50 border border-slate-100 rounded-xl py-2.5 pl-10 pr-4 text-sm outline-none focus:ring-2 focus:ring-primary/20 transition-all"
-          />
+        <div className="flex items-center gap-2 flex-1 max-w-lg">
+          <select
+            value={searchType}
+            onChange={(e) => { setSearchType(e.target.value as 'name' | 'phone'); setSearchTerm(''); }}
+            className="bg-slate-50 border border-slate-100 rounded-xl py-2.5 px-3 text-sm font-medium text-slate-600 outline-none focus:ring-2 focus:ring-primary/20 transition-all cursor-pointer"
+          >
+            <option value="name">Nome</option>
+            <option value="phone">Telefone</option>
+          </select>
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+            <input 
+              type={searchType === 'phone' ? 'tel' : 'text'}
+              placeholder={searchType === 'phone' ? 'Buscar por telefone...' : 'Buscar por nome ou origem...'}
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full bg-slate-50 border border-slate-100 rounded-xl py-2.5 pl-10 pr-4 text-sm outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+            />
+          </div>
         </div>
         <div className="flex gap-2">
           <button className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-slate-600 bg-slate-50 border border-slate-100 rounded-xl hover:bg-slate-100 transition-all">
