@@ -22,6 +22,7 @@ export const Leads: React.FC = () => {
   const { leads, addLead, updateLead, deleteLead, users } = useData();
   const { addNotification } = useNotifications();
   const [searchTerm, setSearchTerm] = useState('');
+  const [searchType, setSearchType] = useState<'name' | 'phone'>('name');
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingLead, setEditingLead] = useState<Lead | null>(null);
@@ -55,6 +56,13 @@ export const Leads: React.FC = () => {
       if (!isSupervisor) return false;
     }
 
+    if (!searchTerm) return true;
+    if (searchType === 'phone') {
+      const normalizedSearch = searchTerm.replace(/[\D]/g, '');
+      const phone1 = (lead.phone || '').replace(/[\D]/g, '');
+      const phone2 = (lead.phone2 || '').replace(/[\D]/g, '');
+      return phone1.includes(normalizedSearch) || phone2.includes(normalizedSearch);
+    }
     return (lead.name || '').toLowerCase().includes(searchTerm.toLowerCase());
   });
 
@@ -261,15 +269,25 @@ export const Leads: React.FC = () => {
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-            <input 
-              type="text" 
-              placeholder="Buscar por nome..." 
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="bg-white border border-slate-200 rounded-xl py-2.5 pl-10 pr-4 text-sm w-80 focus:ring-2 focus:ring-primary/20 outline-none transition-all"
-            />
+          <div className="flex items-center gap-2">
+            <select
+              value={searchType}
+              onChange={(e) => { setSearchType(e.target.value as 'name' | 'phone'); setSearchTerm(''); }}
+              className="bg-white border border-slate-200 rounded-xl py-2.5 px-3 text-sm font-medium text-slate-600 outline-none focus:ring-2 focus:ring-primary/20 transition-all cursor-pointer"
+            >
+              <option value="name">Nome</option>
+              <option value="phone">Telefone</option>
+            </select>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+              <input 
+                type={searchType === 'phone' ? 'tel' : 'text'}
+                placeholder={searchType === 'phone' ? 'Buscar por telefone...' : 'Buscar por nome...'}
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="bg-white border border-slate-200 rounded-xl py-2.5 pl-10 pr-4 text-sm w-72 focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+              />
+            </div>
           </div>
           <button className="p-2.5 bg-white border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-50 transition-all">
             <Filter size={18} />
