@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 import { Lead } from '../types';
-import { MoreVertical, Plus, GripVertical, Search, Filter } from 'lucide-react';
+import { MoreVertical, Plus, GripVertical, Search, Filter, Phone } from 'lucide-react';
 
 export const Funil: React.FC = () => {
   const { user } = useAuth();
@@ -89,6 +89,15 @@ export const Funil: React.FC = () => {
                         <div className="flex-1">
                           <p className="text-sm font-bold text-slate-800 group-hover:text-primary transition-colors">{lead.name}</p>
                           <p className="text-[10px] text-slate-400 mt-0.5 uppercase font-bold tracking-wider">{lead.origin}</p>
+                          {lead.phone && (
+                            <div className="flex items-center gap-1 mt-1.5">
+                              <Phone size={10} className="text-slate-400" />
+                              <span className="text-[11px] text-slate-500 font-medium">{lead.phone}</span>
+                              {lead.phone2 && (
+                                <span className="text-[11px] text-slate-400">/ {lead.phone2}</span>
+                              )}
+                            </div>
+                          )}
                         </div>
                         <select 
                           value={lead.status}
