@@ -45,7 +45,7 @@ const AppContent: React.FC = () => {
       case 'Dashboard': return <Dashboard />;
       case 'Leads': return <Leads />;
       case 'Atribuição': return <Atribuicao />;
-      case 'Funil': return <Funil />;
+      case 'Acompanhamento': return <Funil />;
       case 'Meta': return <Meta />;
       case 'Ranking': return <Ranking />;
       case 'Agenda': return <Agenda />;

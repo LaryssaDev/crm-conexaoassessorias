@@ -32,7 +32,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
     { id: 'Dashboard', icon: LayoutDashboard },
     { id: 'Leads', icon: Users },
     { id: 'Atribuição', icon: UserPlus },
-    { id: 'Funil', icon: Kanban },
+    { id: 'Acompanhamento', icon: Kanban },
     { id: 'Meta', icon: Target },
     { id: 'Ranking', icon: Trophy },
     { id: 'Agenda', icon: Calendar },

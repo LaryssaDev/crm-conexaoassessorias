@@ -182,7 +182,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     switch (tab) {
       case 'Dashboard':
       case 'Andamento':
-      case 'Funil':
+      case 'Acompanhamento':
       case 'Ranking':
       case 'Agenda':
       case 'Ponto':
