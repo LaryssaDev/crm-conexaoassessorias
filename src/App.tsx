@@ -7,7 +7,6 @@ import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
 import { Dashboard } from './views/Dashboard';
 import { Leads } from './views/Leads';
-import { Andamento } from './views/Andamento';
 import { Atribuicao } from './views/Atribuicao';
 import { Funil } from './views/Funil';
 import { Meta } from './views/Meta';
@@ -45,7 +44,6 @@ const AppContent: React.FC = () => {
     switch (activeTab) {
       case 'Dashboard': return <Dashboard />;
       case 'Leads': return <Leads />;
-      case 'Andamento': return <Andamento />;
       case 'Atribuição': return <Atribuicao />;
       case 'Funil': return <Funil />;
       case 'Meta': return <Meta />;

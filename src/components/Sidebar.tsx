@@ -31,7 +31,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
   const menuItems = [
     { id: 'Dashboard', icon: LayoutDashboard },
     { id: 'Leads', icon: Users },
-    { id: 'Andamento', icon: Clock },
     { id: 'Atribuição', icon: UserPlus },
     { id: 'Funil', icon: Kanban },
     { id: 'Meta', icon: Target },
