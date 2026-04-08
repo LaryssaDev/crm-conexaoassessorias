@@ -181,13 +181,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     switch (tab) {
       case 'Dashboard':
-      case 'Leads':
       case 'Andamento':
       case 'Funil':
       case 'Ranking':
       case 'Agenda':
       case 'Ponto':
         return true; // Everyone has access to these basic ones (with data filtering)
+
+      case 'Leads':
+        return role === 'Administrador' || role === 'Supervisor' || role === 'Financeiro';
       
       case 'Atribuição':
         return role === 'Administrador' || role === 'Supervisor' || role === 'Financeiro';
