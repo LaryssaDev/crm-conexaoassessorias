@@ -27,7 +27,7 @@ export interface Lead {
   origin: string;
   contractType: string;
   installmentValue: number;
-  status: 'Novo' | 'Em Negociação' | 'Fechado' | 'Perdido';
+  status: 'Novo' | 'Em Atendimento' | 'Em Negociação' | 'Fechado' | 'Perdido';
   supervisorComercialId?: string;
   consultorComercialId?: string;
   supervisorJuridicoId?: string;

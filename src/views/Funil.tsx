@@ -11,6 +11,7 @@ export const Funil: React.FC = () => {
   
   const columns = [
     { id: 'Novo', title: 'Novo', color: 'bg-blue-500' },
+    { id: 'Em Atendimento', title: 'Em Atendimento', color: 'bg-cyan-500' },
     { id: 'Em Negociação', title: 'Em Negociação', color: 'bg-amber-500' },
     { id: 'Fechado', title: 'Fechado', color: 'bg-emerald-500' },
     { id: 'Perdido', title: 'Perdido', color: 'bg-red-500' },
@@ -98,6 +99,7 @@ export const Funil: React.FC = () => {
                           className="text-[10px] font-bold bg-slate-50 border border-slate-200 rounded px-1 py-0.5 outline-none focus:ring-1 focus:ring-primary/30"
                         >
                           <option value="Novo">Novo</option>
+                          <option value="Em Atendimento">Em Atendimento</option>
                           <option value="Em Negociação">Negociação</option>
                           <option value="Fechado">Fechado</option>
                           <option value="Perdido">Perdido</option>
