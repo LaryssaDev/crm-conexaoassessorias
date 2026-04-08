@@ -23,6 +23,8 @@ export const Leads: React.FC = () => {
   const { addNotification } = useNotifications();
   const [searchTerm, setSearchTerm] = useState('');
   const [searchType, setSearchType] = useState<'name' | 'phone'>('name');
+  const [showFilterPanel, setShowFilterPanel] = useState(false);
+  const [filterConsultorId, setFilterConsultorId] = useState<string>('');
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingLead, setEditingLead] = useState<Lead | null>(null);
@@ -40,6 +42,9 @@ export const Leads: React.FC = () => {
     installmentValue: ''
   });
 
+  // Build consultant list from both departments
+  const consultores = (users || []).filter(u => u.role === 'Consultor');
+
   const filteredLeads = (leads || []).filter(lead => {
     // Role-based filtering
     if (user?.role === 'Consultor') {
@@ -54,6 +59,15 @@ export const Leads: React.FC = () => {
         lead.supervisorJuridicoId === user.id || 
         lead.supervisorId === user.id;
       if (!isSupervisor) return false;
+    }
+
+    // Filter by selected consultant
+    if (filterConsultorId) {
+      const matchConsultor =
+        lead.consultorComercialId === filterConsultorId ||
+        lead.consultorJuridicoId === filterConsultorId ||
+        lead.assignedTo === filterConsultorId;
+      if (!matchConsultor) return false;
     }
 
     if (!searchTerm) return true;
@@ -289,9 +303,70 @@ export const Leads: React.FC = () => {
               />
             </div>
           </div>
-          <button className="p-2.5 bg-white border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-50 transition-all">
-            <Filter size={18} />
-          </button>
+          <div className="relative">
+            <button
+              onClick={() => setShowFilterPanel(prev => !prev)}
+              className={`p-2.5 border rounded-xl transition-all ${
+                filterConsultorId
+                  ? 'bg-primary text-white border-primary shadow-md shadow-primary/20'
+                  : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+              }`}
+              title="Filtrar por consultor"
+            >
+              <Filter size={18} />
+            </button>
+
+            {showFilterPanel && (
+              <div className="absolute left-0 top-full mt-2 w-72 bg-white border border-slate-200 rounded-2xl shadow-xl z-40 overflow-hidden">
+                <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
+                  <p className="text-sm font-bold text-slate-700">Filtrar por Consultor</p>
+                  {filterConsultorId && (
+                    <button
+                      onClick={() => { setFilterConsultorId(''); }}
+                      className="text-xs text-red-500 font-medium hover:underline"
+                    >
+                      Limpar
+                    </button>
+                  )}
+                </div>
+                <div className="p-3 max-h-72 overflow-y-auto space-y-1">
+                  {consultores.length === 0 ? (
+                    <p className="text-xs text-slate-400 text-center py-4">Nenhum consultor cadastrado</p>
+                  ) : (
+                    consultores.map(c => (
+                      <button
+                        key={c.id}
+                        onClick={() => { setFilterConsultorId(filterConsultorId === c.id ? '' : c.id); setShowFilterPanel(false); }}
+                        className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm transition-all ${
+                          filterConsultorId === c.id
+                            ? 'bg-primary text-white font-semibold'
+                            : 'text-slate-700 hover:bg-slate-100'
+                        }`}
+                      >
+                        <span className="flex items-center gap-2">
+                          <span className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
+                            filterConsultorId === c.id ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'
+                          }`}>
+                            {c.name.charAt(0)}
+                          </span>
+                          {c.name}
+                        </span>
+                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${
+                          filterConsultorId === c.id
+                            ? 'bg-white/20 text-white'
+                            : c.department === 'Comercial'
+                              ? 'bg-blue-100 text-blue-600'
+                              : 'bg-purple-100 text-purple-600'
+                        }`}>
+                          {c.department}
+                        </span>
+                      </button>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="flex items-center gap-3">
